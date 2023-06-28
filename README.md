@@ -25,4 +25,4 @@ pip install agixtsdk
 Check out the AGiXT [Examples and Tests Notebook](https://github.com/Josh-XT/AGiXT/blob/main/tests/tests.ipynb) for examples of how to use the AGiXT SDK for Python.
 
 ## More Documentation
-Want to know more about AGiXT?  Check out our [documentation](https://josh-xt.github.io/AGiXT/).
+Want to know more about AGiXT?  Check out our [documentation](https://josh-xt.github.io/AGiXT/) or [GitHub](https://github.com/Josh-XT/AGiXT) page.
