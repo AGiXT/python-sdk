@@ -5,13 +5,7 @@
 [![Logo](https://josh-xt.github.io/AGiXT/images/AGiXT-gradient-flat.svg)](https://josh-xt.github.io/AGiXT/)
 
 This repository is for the [AGiXT](https://github.com/Josh-XT/AGiXT) SDK for Python.
-## Table of Contents 📖
 
-- [AGiXT SDK for Python](#agixt-sdk-for-python)
-  - [Table of Contents 📖](#table-of-contents-)
-  - [Installation](#installation)
-  - [Usage](#usage)
-  - [More Documentation](#more-documentation)
 ## Installation
 ```bash
 pip install agixtsdk
