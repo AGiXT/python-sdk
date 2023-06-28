@@ -6,18 +6,15 @@ this_directory = os.path.abspath(os.path.dirname(__file__))
 with open(os.path.join(this_directory, "README.md"), encoding="utf-8") as f:
     long_description = f.read()
 
-with open(os.path.join(this_directory, "requirements.txt")) as f:
-    requirements = f.read().splitlines()
-
 setup(
     name="agixtsdk",
-    version="0.0.1",
+    version="0.0.2",
     description="The AGiXT SDK for Python.",
     long_description=long_description,
     long_description_content_type="text/markdown",
     author="Josh XT",
     author_email="josh@devxt.com",
-    packages=find_packages,
+    packages=find_packages(),
     python_requires=">=3.10",
-    install_requires=requirements,
+    install_requires=["requests"],
 )
