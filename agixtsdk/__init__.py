@@ -103,10 +103,6 @@ class AGiXTSDK:
         prompt_name: str,
         prompt_args: dict,
         user_input: str = "",
-        websearch: bool = False,
-        websearch_depth: int = 3,
-        context_results: int = 5,
-        shots: int = 1,
     ) -> str:
         response = requests.post(
             f"{self.base_uri}/api/agent/{agent_name}/prompt",
@@ -114,41 +110,43 @@ class AGiXTSDK:
                 "user_input": user_input,
                 "prompt_name": prompt_name,
                 "prompt_args": prompt_args,
-                "websearch": websearch,
-                "websearch_depth": websearch_depth,
-                "context_results": context_results,
-                "shots": shots,
             },
         )
         return response.json()["response"]
 
     def instruct(self, agent_name: str, prompt: str) -> str:
-        response = requests.post(
-            f"{self.base_uri}/api/agent/{agent_name}/instruct",
-            json={"prompt": prompt},
+        return self.prompt_agent(
+            agent_name=agent_name,
+            prompt_name="instruct",
+            user_input=prompt,
+            prompt_args={},
         )
-        return response.json()["response"]
-
-    def smartinstruct(self, agent_name: str, shots: int, prompt: str) -> str:
-        response = requests.post(
-            f"{self.base_uri}/api/agent/{agent_name}/smartinstruct/{shots}",
-            json={"prompt": prompt},
-        )
-        return response.json()["response"]
 
     def chat(self, agent_name: str, prompt: str) -> str:
-        response = requests.post(
-            f"{self.base_uri}/api/agent/{agent_name}/chat",
-            json={"prompt": prompt},
+        return self.prompt_agent(
+            agent_name=agent_name,
+            prompt_name="Chat",
+            user_input=prompt,
+            prompt_args={"context_reslts": 4},
         )
-        return response.json()["response"]
 
-    def smartchat(self, agent_name: str, shots: int, prompt: str) -> str:
-        response = requests.post(
-            f"{self.base_uri}/api/agent/{agent_name}/smartchat/{shots}",
-            json={"prompt": prompt},
+    def smartinstruct(self, agent_name: str, prompt: str) -> str:
+        return self.run_chain(
+            chain_name="Smart Instruct",
+            user_input=prompt,
+            agent_name=agent_name,
+            all_responses=False,
+            from_step=1,
         )
-        return response.json()["response"]
+
+    def smartchat(self, agent_name: str, prompt: str) -> str:
+        return self.run_chain(
+            chain_name="Smart Chat",
+            user_input=prompt,
+            agent_name=agent_name,
+            all_responses=False,
+            from_step=1,
+        )
 
     def get_commands(self, agent_name: str) -> Dict[str, Dict[str, bool]]:
         response = requests.get(f"{self.base_uri}/api/agent/{agent_name}/command")
