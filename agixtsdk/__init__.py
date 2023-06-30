@@ -156,13 +156,11 @@ class AGiXTSDK:
         agent_name: str,
         prompt_name: str,
         prompt_args: dict,
-        user_input: str = "",
     ) -> str:
         try:
             response = requests.post(
                 f"{self.base_uri}/api/agent/{agent_name}/prompt",
                 json={
-                    "user_input": user_input,
                     "prompt_name": prompt_name,
                     "prompt_args": prompt_args,
                 },
@@ -175,16 +173,14 @@ class AGiXTSDK:
         return self.prompt_agent(
             agent_name=agent_name,
             prompt_name="instruct",
-            user_input=prompt,
-            prompt_args={},
+            prompt_args={"user_input": prompt},
         )
 
     def chat(self, agent_name: str, prompt: str) -> str:
         return self.prompt_agent(
             agent_name=agent_name,
             prompt_name="Chat",
-            user_input=prompt,
-            prompt_args={"context_reslts": 4},
+            prompt_args={"user_input": prompt, "context_reslts": 4},
         )
 
     def smartinstruct(self, agent_name: str, prompt: str) -> str:
