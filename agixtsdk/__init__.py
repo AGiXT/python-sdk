@@ -424,7 +424,7 @@ class AGiXTSDK:
         except requests.RequestException:
             return self.handle_error(response)
 
-    def get_extensions(self) -> List[tuple]:
+    def get_extensions(self):
         try:
             response = requests.get(f"{self.base_uri}/api/extensions")
             return response.json()["extensions"]
