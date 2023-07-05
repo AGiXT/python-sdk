@@ -12,6 +12,16 @@ pip install agixtsdk
 ```
 
 ## Usage
+
+```python
+from agixtsdk import AGiXTSDK
+
+base_uri = "http://localhost:7437"
+api_key = "your_agixt_api_key"
+
+ApiClient = AGiXTSDK(base_uri=base_uri, api_key=api_key)
+```
+
 Check out the AGiXT [Examples and Tests Notebook](https://github.com/Josh-XT/AGiXT/blob/main/tests/tests.ipynb) for examples of how to use the AGiXT SDK for Python.
 
 ## More Documentation
