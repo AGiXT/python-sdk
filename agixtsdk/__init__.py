@@ -7,10 +7,14 @@ class AGiXTSDK:
         if not base_uri:
             base_uri = "http://localhost:7437"
         self.base_uri = base_uri
-        if api_key:
-            self.headers = {"Authorization": f"Bearer {api_key}"}
+        if not api_key:
+            self.headers = {"Content-Type": "application/json"}
         else:
-            self.headers = {}
+            self.headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            }
+
         if self.base_uri[-1] == "/":
             self.base_uri = self.base_uri[:-1]
 
