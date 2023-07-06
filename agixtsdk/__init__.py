@@ -151,6 +151,24 @@ class AGiXTSDK:
         except requests.RequestException:
             return self.handle_error(response)
 
+    def get_history(
+        self, agent_name: str, conversation_name: str, limit: int = 100, page: int = 1
+    ) -> List[Dict[str, Any]]:
+        try:
+            response = requests.get(
+                headers=self.headers,
+                url=f"{self.base_uri}/api/conversation",
+                json={
+                    "conversation_name": conversation_name,
+                    "agent_name": agent_name,
+                    "limit": limit,
+                    "page": page,
+                },
+            )
+            return response.json()["conversation_history"]
+        except requests.RequestException:
+            return self.handle_error(response)
+
     def delete_agent_history(self, agent_name: str) -> str:
         try:
             response = requests.delete(
