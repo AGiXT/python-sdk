@@ -142,22 +142,23 @@ class AGiXTSDK:
         except requests.RequestException:
             return self.handle_error(response)
 
-    def get_chat_history(self, agent_name: str) -> List[Dict[str, Any]]:
+    def get_conversations(self, agent_name: str) -> List[str]:
         try:
             response = requests.get(
-                headers=self.headers, url=f"{self.base_uri}/api/{agent_name}/chat"
+                headers=self.headers,
+                url=f"{self.base_uri}/api/{agent_name}/conversations",
             )
-            return response.json()["chat_history"]
+            return response.json()["conversations"]
         except requests.RequestException:
             return self.handle_error(response)
 
-    def get_history(
+    def get_conversation(
         self, agent_name: str, conversation_name: str, limit: int = 100, page: int = 1
     ) -> List[Dict[str, Any]]:
         try:
             response = requests.get(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/conversation",
+                url=f"{self.base_uri}/api/{agent_name}/conversations",
                 json={
                     "conversation_name": conversation_name,
                     "agent_name": agent_name,
@@ -169,22 +170,46 @@ class AGiXTSDK:
         except requests.RequestException:
             return self.handle_error(response)
 
-    def delete_agent_history(self, agent_name: str) -> str:
+    def new_conversation(self, agent_name: str, conversation_name: str):
+        try:
+            response = requests.post(
+                headers=self.headers,
+                url=f"{self.base_uri}/api/conversation",
+                json={
+                    "conversation_name": conversation_name,
+                    "agent_name": agent_name,
+                },
+            )
+            return response.json()["conversation_history"]
+        except requests.RequestException:
+            return self.handle_error(response)
+
+    def delete_conversation(self, agent_name: str, conversation_name: str) -> str:
         try:
             response = requests.delete(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/agent/{agent_name}/history",
+                url=f"{self.base_uri}/api/conversation",
+                json={
+                    "conversation_name": conversation_name,
+                    "agent_name": agent_name,
+                },
             )
             return response.json()["message"]
         except requests.RequestException:
             return self.handle_error(response)
 
-    def delete_history_message(self, agent_name: str, message: str) -> str:
+    def delete_conversation_message(
+        self, agent_name: str, conversation_name: str, message: str
+    ) -> str:
         try:
             response = requests.delete(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/agent/{agent_name}/history/message",
-                json={"message": message},
+                url=f"{self.base_uri}/api/conversation/message",
+                json={
+                    "message": message,
+                    "agent_name": agent_name,
+                    "conversation_name": conversation_name,
+                },
             )
             return response.json()["message"]
         except requests.RequestException:
