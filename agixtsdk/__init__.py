@@ -158,7 +158,7 @@ class AGiXTSDK:
         try:
             response = requests.get(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/{agent_name}/conversations",
+                url=f"{self.base_uri}/api/conversation",
                 json={
                     "conversation_name": conversation_name,
                     "agent_name": agent_name,
