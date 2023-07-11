@@ -18,8 +18,9 @@ class AGiXTSDK:
         if self.base_uri[-1] == "/":
             self.base_uri = self.base_uri[:-1]
 
-    def handle_error(self, response: requests.Response) -> str:
-        return "Unable to retrieve data."
+    def handle_error(self, error) -> str:
+        print(f"Error: {error}")
+        return f"Unable to retrieve data."
 
     def get_providers(self) -> List[str]:
         try:
@@ -27,8 +28,8 @@ class AGiXTSDK:
                 headers=self.headers, url=f"{self.base_uri}/api/provider"
             )
             return response.json()["providers"]
-        except requests.RequestException:
-            return self.handle_error(response)
+        except Exception as e:
+            return self.handle_error(e)
 
     def get_provider_settings(self, provider_name: str) -> Dict[str, Any]:
         try:
@@ -37,8 +38,8 @@ class AGiXTSDK:
                 url=f"{self.base_uri}/api/provider/{provider_name}",
             )
             return response.json()["settings"]
-        except requests.RequestException:
-            return self.handle_error(response)
+        except Exception as e:
+            return self.handle_error(e)
 
     def get_embed_providers(self) -> List[str]:
         try:
@@ -46,8 +47,8 @@ class AGiXTSDK:
                 headers=self.headers, url=f"{self.base_uri}/api/embedding_providers"
             )
             return response.json()["providers"]
-        except requests.RequestException:
-            return self.handle_error(response)
+        except Exception as e:
+            return self.handle_error(e)
 
     def add_agent(
         self, agent_name: str, settings: Dict[str, Any] = {}
@@ -59,8 +60,8 @@ class AGiXTSDK:
                 json={"agent_name": agent_name, "settings": settings},
             )
             return response.json()
-        except requests.RequestException:
-            return self.handle_error(response)
+        except Exception as e:
+            return self.handle_error(e)
 
     def import_agent(
         self,
@@ -79,8 +80,8 @@ class AGiXTSDK:
                 },
             )
             return response.json()
-        except requests.RequestException:
-            return self.handle_error(response)
+        except Exception as e:
+            return self.handle_error(e)
 
     def rename_agent(self, agent_name: str, new_name: str) -> str:
         try:
@@ -90,8 +91,8 @@ class AGiXTSDK:
                 json={"new_name": new_name},
             )
             return response.json()
-        except requests.RequestException:
-            return self.handle_error(response)
+        except Exception as e:
+            return self.handle_error(e)
 
     def update_agent_settings(self, agent_name: str, settings: Dict[str, Any]) -> str:
         try:
@@ -100,8 +101,8 @@ class AGiXTSDK:
                 json={"settings": settings, "agent_name": agent_name},
             )
             return response.json()["message"]
-        except requests.RequestException:
-            return self.handle_error(response)
+        except Exception as e:
+            return self.handle_error(e)
 
     def update_agent_commands(self, agent_name: str, commands: Dict[str, Any]) -> str:
         try:
@@ -110,8 +111,8 @@ class AGiXTSDK:
                 json={"commands": commands, "agent_name": agent_name},
             )
             return response.json()["message"]
-        except requests.RequestException:
-            return self.handle_error(response)
+        except Exception as e:
+            return self.handle_error(e)
 
     def delete_agent(self, agent_name: str) -> str:
         try:
@@ -119,8 +120,8 @@ class AGiXTSDK:
                 headers=self.headers, url=f"{self.base_uri}/api/agent/{agent_name}"
             )
             return response.json()["message"]
-        except requests.RequestException:
-            return self.handle_error(response)
+        except Exception as e:
+            return self.handle_error(e)
 
     def get_agents(
         self,
@@ -130,8 +131,8 @@ class AGiXTSDK:
                 headers=self.headers, url=f"{self.base_uri}/api/agent"
             )
             return response.json()["agents"]
-        except requests.RequestException:
-            return self.handle_error(response)
+        except Exception as e:
+            return self.handle_error(e)
 
     def get_agentconfig(self, agent_name: str) -> Dict[str, Any]:
         try:
@@ -139,8 +140,8 @@ class AGiXTSDK:
                 headers=self.headers, url=f"{self.base_uri}/api/agent/{agent_name}"
             )
             return response.json()["agent"]
-        except requests.RequestException:
-            return self.handle_error(response)
+        except Exception as e:
+            return self.handle_error(e)
 
     def get_conversations(self, agent_name: str) -> List[str]:
         try:
@@ -149,8 +150,8 @@ class AGiXTSDK:
                 url=f"{self.base_uri}/api/{agent_name}/conversations",
             )
             return response.json()["conversations"]
-        except requests.RequestException:
-            return self.handle_error(response)
+        except Exception as e:
+            return self.handle_error(e)
 
     def get_conversation(
         self, agent_name: str, conversation_name: str, limit: int = 100, page: int = 1
@@ -167,8 +168,8 @@ class AGiXTSDK:
                 },
             )
             return response.json()["conversation_history"]
-        except requests.RequestException:
-            return self.handle_error(response)
+        except Exception as e:
+            return self.handle_error(e)
 
     def new_conversation(self, agent_name: str, conversation_name: str):
         try:
@@ -181,8 +182,8 @@ class AGiXTSDK:
                 },
             )
             return response.json()["conversation_history"]
-        except requests.RequestException:
-            return self.handle_error(response)
+        except Exception as e:
+            return self.handle_error(e)
 
     def delete_conversation(self, agent_name: str, conversation_name: str) -> str:
         try:
@@ -195,8 +196,8 @@ class AGiXTSDK:
                 },
             )
             return response.json()["message"]
-        except requests.RequestException:
-            return self.handle_error(response)
+        except Exception as e:
+            return self.handle_error(e)
 
     def delete_conversation_message(
         self, agent_name: str, conversation_name: str, message: str
@@ -212,8 +213,8 @@ class AGiXTSDK:
                 },
             )
             return response.json()["message"]
-        except requests.RequestException:
-            return self.handle_error(response)
+        except Exception as e:
+            return self.handle_error(e)
 
     def wipe_agent_memories(self, agent_name: str) -> str:
         try:
@@ -222,8 +223,8 @@ class AGiXTSDK:
                 url=f"{self.base_uri}/api/agent/{agent_name}/memory",
             )
             return response.json()["message"]
-        except requests.RequestException:
-            return self.handle_error(response)
+        except Exception as e:
+            return self.handle_error(e)
 
     def prompt_agent(
         self,
@@ -241,8 +242,8 @@ class AGiXTSDK:
                 },
             )
             return response.json()["response"]
-        except requests.RequestException:
-            return self.handle_error(response)
+        except Exception as e:
+            return self.handle_error(e)
 
     def instruct(self, agent_name: str, prompt: str) -> str:
         return self.prompt_agent(
@@ -283,8 +284,8 @@ class AGiXTSDK:
                 url=f"{self.base_uri}/api/agent/{agent_name}/command",
             )
             return response.json()["commands"]
-        except requests.RequestException:
-            return self.handle_error(response)
+        except Exception as e:
+            return self.handle_error(e)
 
     def toggle_command(self, agent_name: str, command_name: str, enable: bool) -> str:
         try:
@@ -294,8 +295,8 @@ class AGiXTSDK:
                 json={"command_name": command_name, "enable": enable},
             )
             return response.json()["message"]
-        except requests.RequestException:
-            return self.handle_error(response)
+        except Exception as e:
+            return self.handle_error(e)
 
     def get_chains(self) -> List[str]:
         try:
@@ -303,8 +304,8 @@ class AGiXTSDK:
                 headers=self.headers, url=f"{self.base_uri}/api/chain"
             )
             return response.json()
-        except requests.RequestException:
-            return self.handle_error(response)
+        except Exception as e:
+            return self.handle_error(e)
 
     def get_chain(self, chain_name: str) -> Dict[str, Any]:
         try:
@@ -312,8 +313,8 @@ class AGiXTSDK:
                 headers=self.headers, url=f"{self.base_uri}/api/chain/{chain_name}"
             )
             return response.json()["chain"]
-        except requests.RequestException:
-            return self.handle_error(response)
+        except Exception as e:
+            return self.handle_error(e)
 
     def get_chain_responses(self, chain_name: str) -> Dict[str, Any]:
         try:
@@ -322,8 +323,8 @@ class AGiXTSDK:
                 url=f"{self.base_uri}/api/chain/{chain_name}/responses",
             )
             return response.json()["chain"]
-        except requests.RequestException:
-            return self.handle_error(response)
+        except Exception as e:
+            return self.handle_error(e)
 
     def run_chain(
         self,
@@ -345,8 +346,8 @@ class AGiXTSDK:
                 },
             )
             return response.json()
-        except requests.RequestException:
-            return self.handle_error(response)
+        except Exception as e:
+            return self.handle_error(e)
 
     def add_chain(self, chain_name: str) -> str:
         try:
@@ -356,8 +357,8 @@ class AGiXTSDK:
                 json={"chain_name": chain_name},
             )
             return response.json()["message"]
-        except requests.RequestException:
-            return self.handle_error(response)
+        except Exception as e:
+            return self.handle_error(e)
 
     def import_chain(self, chain_name: str, steps: dict) -> str:
         try:
@@ -367,8 +368,8 @@ class AGiXTSDK:
                 json={"chain_name": chain_name, "steps": steps},
             )
             return response.json()["message"]
-        except requests.RequestException:
-            return self.handle_error(response)
+        except Exception as e:
+            return self.handle_error(e)
 
     def rename_chain(self, chain_name: str, new_name: str) -> str:
         try:
@@ -377,8 +378,8 @@ class AGiXTSDK:
                 json={"new_name": new_name},
             )
             return response.json()["message"]
-        except requests.RequestException:
-            return self.handle_error(response)
+        except Exception as e:
+            return self.handle_error(e)
 
     def delete_chain(self, chain_name: str) -> str:
         try:
@@ -386,8 +387,8 @@ class AGiXTSDK:
                 headers=self.headers, url=f"{self.base_uri}/api/chain/{chain_name}"
             )
             return response.json()["message"]
-        except requests.RequestException:
-            return self.handle_error(response)
+        except Exception as e:
+            return self.handle_error(e)
 
     def add_step(
         self,
@@ -409,8 +410,8 @@ class AGiXTSDK:
                 },
             )
             return response.json()["message"]
-        except requests.RequestException:
-            return self.handle_error(response)
+        except Exception as e:
+            return self.handle_error(e)
 
     def update_step(
         self,
@@ -431,8 +432,8 @@ class AGiXTSDK:
                 },
             )
             return response.json()["message"]
-        except requests.RequestException:
-            return self.handle_error(response)
+        except Exception as e:
+            return self.handle_error(e)
 
     def move_step(
         self,
@@ -450,8 +451,8 @@ class AGiXTSDK:
                 },
             )
             return response.json()["message"]
-        except requests.RequestException:
-            return self.handle_error(response)
+        except Exception as e:
+            return self.handle_error(e)
 
     def delete_step(self, chain_name: str, step_number: int) -> str:
         try:
@@ -460,8 +461,8 @@ class AGiXTSDK:
                 url=f"{self.base_uri}/api/chain/{chain_name}/step/{step_number}",
             )
             return response.json()["message"]
-        except requests.RequestException:
-            return self.handle_error(response)
+        except Exception as e:
+            return self.handle_error(e)
 
     def add_prompt(self, prompt_name: str, prompt: str) -> str:
         try:
@@ -471,8 +472,8 @@ class AGiXTSDK:
                 json={"prompt_name": prompt_name, "prompt": prompt},
             )
             return response.json()["message"]
-        except requests.RequestException:
-            return self.handle_error(response)
+        except Exception as e:
+            return self.handle_error(e)
 
     def get_prompt(self, prompt_name: str) -> Dict[str, Any]:
         try:
@@ -480,8 +481,8 @@ class AGiXTSDK:
                 headers=self.headers, url=f"{self.base_uri}/api/prompt/{prompt_name}"
             )
             return response.json()["prompt"]
-        except requests.RequestException:
-            return self.handle_error(response)
+        except Exception as e:
+            return self.handle_error(e)
 
     def get_prompts(self) -> List[str]:
         try:
@@ -489,8 +490,8 @@ class AGiXTSDK:
                 headers=self.headers, url=f"{self.base_uri}/api/prompt"
             )
             return response.json()["prompts"]
-        except requests.RequestException:
-            return self.handle_error(response)
+        except Exception as e:
+            return self.handle_error(e)
 
     def get_prompt_args(self, prompt_name: str) -> Dict[str, Any]:
         try:
@@ -499,8 +500,8 @@ class AGiXTSDK:
                 url=f"{self.base_uri}/api/prompt/{prompt_name}/args",
             )
             return response.json()["prompt_args"]
-        except requests.RequestException:
-            return self.handle_error(response)
+        except Exception as e:
+            return self.handle_error(e)
 
     def delete_prompt(self, prompt_name: str) -> str:
         try:
@@ -508,8 +509,8 @@ class AGiXTSDK:
                 headers=self.headers, url=f"{self.base_uri}/api/prompt/{prompt_name}"
             )
             return response.json()["message"]
-        except requests.RequestException:
-            return self.handle_error(response)
+        except Exception as e:
+            return self.handle_error(e)
 
     def update_prompt(self, prompt_name: str, prompt: str) -> str:
         try:
@@ -518,8 +519,8 @@ class AGiXTSDK:
                 json={"prompt": prompt, "prompt_name": prompt_name},
             )
             return response.json()["message"]
-        except requests.RequestException:
-            return self.handle_error(response)
+        except Exception as e:
+            return self.handle_error(e)
 
     def get_extension_settings(self) -> Dict[str, Any]:
         try:
@@ -527,8 +528,8 @@ class AGiXTSDK:
                 headers=self.headers, url=f"{self.base_uri}/api/extensions/settings"
             )
             return response.json()["extension_settings"]
-        except requests.RequestException:
-            return self.handle_error(response)
+        except Exception as e:
+            return self.handle_error(e)
 
     def get_extensions(self):
         try:
@@ -536,8 +537,8 @@ class AGiXTSDK:
                 headers=self.headers, url=f"{self.base_uri}/api/extensions"
             )
             return response.json()["extensions"]
-        except requests.RequestException:
-            return self.handle_error(response)
+        except Exception as e:
+            return self.handle_error(e)
 
     def get_command_args(self, command_name: str) -> Dict[str, Any]:
         try:
@@ -546,8 +547,8 @@ class AGiXTSDK:
                 url=f"{self.base_uri}/api/extensions/{command_name}/args",
             )
             return response.json()["command_args"]
-        except requests.RequestException:
-            return self.handle_error(response)
+        except Exception as e:
+            return self.handle_error(e)
 
     def learn_url(self, agent_name: str, url: str) -> str:
         try:
@@ -557,8 +558,8 @@ class AGiXTSDK:
                 json={"url": url},
             )
             return response.json()["message"]
-        except requests.RequestException:
-            return self.handle_error(response)
+        except Exception as e:
+            return self.handle_error(e)
 
     def learn_file(self, agent_name: str, file_name: str, file_content: str) -> str:
         try:
@@ -568,5 +569,5 @@ class AGiXTSDK:
                 json={"file_name": file_name, "file_content": file_content},
             )
             return response.json()["message"]
-        except requests.RequestException:
-            return self.handle_error(response)
+        except Exception as e:
+            return self.handle_error(e)
