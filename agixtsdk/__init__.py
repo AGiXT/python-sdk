@@ -349,6 +349,22 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
+    def run_chain_step(
+        self, chain_name: str, step_number: int, user_input: str, agent_name=None
+    ) -> str:
+        try:
+            response = requests.post(
+                headers=self.headers,
+                url=f"{self.base_uri}/api/chain/{chain_name}/run/step/{step_number}",
+                json={
+                    "prompt": user_input,
+                    "agent_override": agent_name,
+                },
+            )
+            return response.json()
+        except Exception as e:
+            return self.handle_error(e)
+
     def add_chain(self, chain_name: str) -> str:
         try:
             response = requests.post(
