@@ -538,6 +538,17 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
+    def rename_prompt(self, prompt_name: str, new_name: str) -> str:
+        try:
+            response = requests.patch(
+                headers=self.headers,
+                url=f"{self.base_uri}/api/prompt/{prompt_name}",
+                json={"prompt_name": new_name},
+            )
+            return response.json()["message"]
+        except Exception as e:
+            return self.handle_error(e)
+
     def get_extension_settings(self) -> Dict[str, Any]:
         try:
             response = requests.get(
