@@ -266,6 +266,7 @@ class AGiXTSDK:
             agent_name=agent_name,
             all_responses=False,
             from_step=1,
+            chain_args={},
         )
 
     def smartchat(self, agent_name: str, prompt: str) -> str:
@@ -275,6 +276,7 @@ class AGiXTSDK:
             agent_name=agent_name,
             all_responses=False,
             from_step=1,
+            chain_args={},
         )
 
     def get_commands(self, agent_name: str) -> Dict[str, Dict[str, bool]]:
@@ -333,6 +335,7 @@ class AGiXTSDK:
         agent_name: str = "",
         all_responses: bool = False,
         from_step: int = 1,
+        chain_args={},
     ) -> str:
         try:
             response = requests.post(
@@ -343,6 +346,7 @@ class AGiXTSDK:
                     "agent_override": agent_name,
                     "all_responses": all_responses,
                     "from_step": int(from_step),
+                    "chain_args": chain_args,
                 },
             )
             return response.json()
@@ -350,7 +354,12 @@ class AGiXTSDK:
             return self.handle_error(e)
 
     def run_chain_step(
-        self, chain_name: str, step_number: int, user_input: str, agent_name=None
+        self,
+        chain_name: str,
+        step_number: int,
+        user_input: str,
+        agent_name=None,
+        chain_args={},
     ) -> str:
         try:
             response = requests.post(
@@ -359,6 +368,7 @@ class AGiXTSDK:
                 json={
                     "prompt": user_input,
                     "agent_override": agent_name,
+                    "chain_args": chain_args,
                 },
             )
             return response.json()
