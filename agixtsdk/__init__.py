@@ -328,6 +328,16 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
+    def get_chain_args(self, chain_name: str) -> List[str]:
+        try:
+            response = requests.get(
+                headers=self.headers,
+                url=f"{self.base_uri}/api/chain/{chain_name}/args",
+            )
+            return response.json()["chain_args"]
+        except Exception as e:
+            return self.handle_error(e)
+
     def run_chain(
         self,
         chain_name: str,
