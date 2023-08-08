@@ -245,38 +245,59 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
-    def instruct(self, agent_name: str, prompt: str) -> str:
+    def instruct(self, agent_name: str, user_input: str, conversation: str) -> str:
         return self.prompt_agent(
             agent_name=agent_name,
             prompt_name="instruct",
-            prompt_args={"user_input": prompt},
+            prompt_args={
+                "user_input": user_input,
+                "disable_memory": True,
+                "conversation_name": conversation,
+            },
         )
 
-    def chat(self, agent_name: str, prompt: str) -> str:
+    def chat(
+        self,
+        agent_name: str,
+        user_input: str,
+        conversation: str,
+        context_results: int = 4,
+    ) -> str:
         return self.prompt_agent(
             agent_name=agent_name,
             prompt_name="Chat",
-            prompt_args={"user_input": prompt, "context_reslts": 4},
+            prompt_args={
+                "user_input": user_input,
+                "context_results": context_results,
+                "conversation_name": conversation,
+                "disable_memory": True,
+            },
         )
 
-    def smartinstruct(self, agent_name: str, prompt: str) -> str:
+    def smartinstruct(self, agent_name: str, user_input: str, conversation: str) -> str:
         return self.run_chain(
             chain_name="Smart Instruct",
-            user_input=prompt,
+            user_input=user_input,
             agent_name=agent_name,
             all_responses=False,
             from_step=1,
-            chain_args={},
+            chain_args={
+                "conversation_name": conversation,
+                "disable_memory": True,
+            },
         )
 
-    def smartchat(self, agent_name: str, prompt: str) -> str:
+    def smartchat(self, agent_name: str, user_input: str, conversation: str) -> str:
         return self.run_chain(
             chain_name="Smart Chat",
-            user_input=prompt,
+            user_input=user_input,
             agent_name=agent_name,
             all_responses=False,
             from_step=1,
-            chain_args={},
+            chain_args={
+                "conversation_name": conversation,
+                "disable_memory": True,
+            },
         )
 
     def get_commands(self, agent_name: str) -> Dict[str, Dict[str, bool]]:
