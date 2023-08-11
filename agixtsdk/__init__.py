@@ -525,69 +525,89 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
-    def add_prompt(self, prompt_name: str, prompt: str) -> str:
+    def add_prompt(
+        self, prompt_name: str, prompt: str, prompt_category: str = "Default"
+    ) -> str:
         try:
             response = requests.post(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/prompt",
-                json={"prompt_name": prompt_name, "prompt": prompt},
+                url=f"{self.base_uri}/api/prompt/{prompt_category}",
+                json={
+                    "prompt_name": prompt_name,
+                    "prompt": prompt,
+                },
             )
             return response.json()["message"]
         except Exception as e:
             return self.handle_error(e)
 
-    def get_prompt(self, prompt_name: str) -> Dict[str, Any]:
+    def get_prompt(
+        self, prompt_name: str, prompt_category: str = "Default"
+    ) -> Dict[str, Any]:
         try:
             response = requests.get(
-                headers=self.headers, url=f"{self.base_uri}/api/prompt/{prompt_name}"
+                headers=self.headers,
+                url=f"{self.base_uri}/api/prompt/{prompt_category}/{prompt_name}",
             )
             return response.json()["prompt"]
         except Exception as e:
             return self.handle_error(e)
 
-    def get_prompts(self) -> List[str]:
+    def get_prompts(self, prompt_category: str = "Default") -> List[str]:
         try:
             response = requests.get(
-                headers=self.headers, url=f"{self.base_uri}/api/prompt"
+                headers=self.headers,
+                url=f"{self.base_uri}/api/prompt/{prompt_category}",
             )
             return response.json()["prompts"]
         except Exception as e:
             return self.handle_error(e)
 
-    def get_prompt_args(self, prompt_name: str) -> Dict[str, Any]:
+    def get_prompt_args(
+        self, prompt_name: str, prompt_category: str = "Default"
+    ) -> Dict[str, Any]:
         try:
             response = requests.get(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/prompt/{prompt_name}/args",
+                url=f"{self.base_uri}/api/prompt/{prompt_category}/{prompt_name}/args",
             )
             return response.json()["prompt_args"]
         except Exception as e:
             return self.handle_error(e)
 
-    def delete_prompt(self, prompt_name: str) -> str:
+    def delete_prompt(self, prompt_name: str, prompt_category: str = "Default") -> str:
         try:
             response = requests.delete(
-                headers=self.headers, url=f"{self.base_uri}/api/prompt/{prompt_name}"
+                headers=self.headers,
+                url=f"{self.base_uri}/api/prompt/{prompt_category}/{prompt_name}",
             )
             return response.json()["message"]
         except Exception as e:
             return self.handle_error(e)
 
-    def update_prompt(self, prompt_name: str, prompt: str) -> str:
+    def update_prompt(
+        self, prompt_name: str, prompt: str, prompt_category: str = "Default"
+    ) -> str:
         try:
             response = requests.put(
-                f"{self.base_uri}/api/prompt/{prompt_name}",
-                json={"prompt": prompt, "prompt_name": prompt_name},
+                f"{self.base_uri}/api/prompt/{prompt_category}/{prompt_name}",
+                json={
+                    "prompt": prompt,
+                    "prompt_name": prompt_name,
+                    "prompt_category": prompt_category,
+                },
             )
             return response.json()["message"]
         except Exception as e:
             return self.handle_error(e)
 
-    def rename_prompt(self, prompt_name: str, new_name: str) -> str:
+    def rename_prompt(
+        self, prompt_name: str, new_name: str, prompt_category: str = "Default"
+    ) -> str:
         try:
             response = requests.patch(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/prompt/{prompt_name}",
+                url=f"{self.base_uri}/api/prompt/{prompt_category}/{prompt_name}",
                 json={"prompt_name": new_name},
             )
             return response.json()["message"]
