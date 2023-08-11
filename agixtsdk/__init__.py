@@ -563,6 +563,16 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
+    def get_prompt_categories(self) -> List[str]:
+        try:
+            response = requests.get(
+                headers=self.headers,
+                url=f"{self.base_uri}/api/prompt/categories",
+            )
+            return response.json()["prompt_categories"]
+        except Exception as e:
+            return self.handle_error(e)
+
     def get_prompt_args(
         self, prompt_name: str, prompt_category: str = "Default"
     ) -> Dict[str, Any]:
