@@ -143,11 +143,15 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
-    def get_conversations(self, agent_name: str) -> List[str]:
+    def get_conversations(self, agent_name: str = "") -> List[str]:
+        if agent_name == "":
+            url = f"{self.base_uri}/api/conversations"
+        else:
+            url = f"{self.base_uri}/api/{agent_name}/conversations"
         try:
             response = requests.get(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/{agent_name}/conversations",
+                url=url,
             )
             return response.json()["conversations"]
         except Exception as e:
@@ -635,6 +639,27 @@ class AGiXTSDK:
                 headers=self.headers,
                 url=f"{self.base_uri}/api/agent/{agent_name}/learn/file",
                 json={"file_name": file_name, "file_content": file_content},
+            )
+            return response.json()["message"]
+        except Exception as e:
+            return self.handle_error(e)
+
+    def learn_github_repo(
+        self,
+        agent_name: str,
+        github_repo: str,
+        github_user: str = None,
+        github_token: str = None,
+    ):
+        try:
+            response = requests.post(
+                headers=self.headers,
+                url=f"{self.base_uri}/api/agent/{agent_name}/learn/github",
+                json={
+                    "github_repo": github_repo,
+                    "github_user": github_user,
+                    "github_token": github_token,
+                },
             )
             return response.json()["message"]
         except Exception as e:
