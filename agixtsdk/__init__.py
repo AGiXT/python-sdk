@@ -650,6 +650,7 @@ class AGiXTSDK:
         github_repo: str,
         github_user: str = None,
         github_token: str = None,
+        github_branch: str = "main",
     ):
         try:
             response = requests.post(
@@ -659,6 +660,7 @@ class AGiXTSDK:
                     "github_repo": github_repo,
                     "github_user": github_user,
                     "github_token": github_token,
+                    "github_branch": github_branch,
                 },
             )
             return response.json()["message"]
