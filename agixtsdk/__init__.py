@@ -50,6 +50,15 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
+    def get_embedders(self) -> Dict[str, Any]:
+        try:
+            response = requests.get(
+                headers=self.headers, url=f"{self.base_uri}/api/embedders"
+            )
+            return response.json()["embedders"]
+        except Exception as e:
+            return self.handle_error(e)
+
     def add_agent(
         self, agent_name: str, settings: Dict[str, Any] = {}
     ) -> Dict[str, Any]:
@@ -215,16 +224,6 @@ class AGiXTSDK:
                     "agent_name": agent_name,
                     "conversation_name": conversation_name,
                 },
-            )
-            return response.json()["message"]
-        except Exception as e:
-            return self.handle_error(e)
-
-    def wipe_agent_memories(self, agent_name: str) -> str:
-        try:
-            response = requests.delete(
-                headers=self.headers,
-                url=f"{self.base_uri}/api/agent/{agent_name}/memory",
             )
             return response.json()["message"]
         except Exception as e:
@@ -652,23 +651,62 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
-    def learn_url(self, agent_name: str, url: str) -> str:
+    def get_embedders_details(self) -> Dict[str, Any]:
+        try:
+            response = requests.get(
+                headers=self.headers, url=f"{self.base_uri}/api/embedders"
+            )
+            return response.json()["embedders"]
+        except Exception as e:
+            return self.handle_error(e)
+
+    def learn_text(
+        self, agent_name, user_input: str, text: str, collection_number: int = 0
+    ) -> str:
         try:
             response = requests.post(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/agent/{agent_name}/learn/url",
-                json={"url": url},
+                url=f"{self.base_uri}/api/agent/{agent_name}/learn/text",
+                json={
+                    "user_input": user_input,
+                    "text": text,
+                    "collection_number": collection_number,
+                },
             )
             return response.json()["message"]
         except Exception as e:
             return self.handle_error(e)
 
-    def learn_file(self, agent_name: str, file_name: str, file_content: str) -> str:
+    def learn_url(self, agent_name: str, url: str, collection_number: int = 0) -> str:
+        try:
+            response = requests.post(
+                headers=self.headers,
+                url=f"{self.base_uri}/api/agent/{agent_name}/learn/url",
+                json={
+                    "url": url,
+                    "collection_number": collection_number,
+                },
+            )
+            return response.json()["message"]
+        except Exception as e:
+            return self.handle_error(e)
+
+    def learn_file(
+        self,
+        agent_name: str,
+        file_name: str,
+        file_content: str,
+        collection_number: int = 0,
+    ) -> str:
         try:
             response = requests.post(
                 headers=self.headers,
                 url=f"{self.base_uri}/api/agent/{agent_name}/learn/file",
-                json={"file_name": file_name, "file_content": file_content},
+                json={
+                    "file_name": file_name,
+                    "file_content": file_content,
+                    "collection_number": collection_number,
+                },
             )
             return response.json()["message"]
         except Exception as e:
@@ -681,6 +719,8 @@ class AGiXTSDK:
         github_user: str = None,
         github_token: str = None,
         github_branch: str = "main",
+        use_agent_settings: bool = False,
+        collection_number: int = 0,
     ):
         try:
             response = requests.post(
@@ -691,8 +731,56 @@ class AGiXTSDK:
                     "github_user": github_user,
                     "github_token": github_token,
                     "github_branch": github_branch,
+                    "collection_number": collection_number,
+                    "use_agent_settings": use_agent_settings,
                 },
             )
             return response.json()["message"]
+        except Exception as e:
+            return self.handle_error(e)
+
+    def wipe_agent_memories(self, agent_name: str, collection_number: int = 0) -> str:
+        try:
+            response = requests.delete(
+                headers=self.headers,
+                url=f"{self.base_uri}/api/agent/{agent_name}/memory"
+                if collection_number == 0
+                else f"{self.base_uri}/api/agent/{agent_name}/memory/{collection_number}",
+            )
+            return response.json()["message"]
+        except Exception as e:
+            return self.handle_error(e)
+
+    def delete_agent_memory(
+        self, agent_name: str, memory_id: str, collection_number: int = 0
+    ) -> str:
+        try:
+            response = requests.delete(
+                headers=self.headers,
+                url=f"{self.base_uri}/api/agent/{agent_name}/memory/{collection_number}/{memory_id}",
+            )
+            return response.json()["message"]
+        except Exception as e:
+            return self.handle_error(e)
+
+    def get_agent_memories(
+        self,
+        agent_name: str,
+        user_input: str,
+        limit: int = 5,
+        min_relevance_score: float = 0.0,
+        collection_number: int = 0,
+    ) -> List[Dict[str, Any]]:
+        try:
+            response = requests.get(
+                headers=self.headers,
+                url=f"{self.base_uri}/api/agent/{agent_name}/memory/{collection_number}/query",
+                json={
+                    "user_input": user_input,
+                    "limit": limit,
+                    "min_relevance_score": min_relevance_score,
+                },
+            )
+            return response.json()["memories"]
         except Exception as e:
             return self.handle_error(e)
