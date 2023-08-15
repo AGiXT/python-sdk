@@ -772,7 +772,7 @@ class AGiXTSDK:
         collection_number: int = 0,
     ) -> List[Dict[str, Any]]:
         try:
-            response = requests.get(
+            response = requests.post(
                 headers=self.headers,
                 url=f"{self.base_uri}/api/agent/{agent_name}/memory/{collection_number}/query",
                 json={
