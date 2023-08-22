@@ -324,12 +324,22 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
-    def execute_command(self, agent_name: str, command_name: str, command_args: dict):
+    def execute_command(
+        self,
+        agent_name: str,
+        command_name: str,
+        command_args: dict,
+        conversation_name: str = "AGiXT Terminal Command Execution",
+    ):
         try:
             response = requests.post(
                 headers=self.headers,
                 url=f"{self.base_uri}/api/agent/{agent_name}/command",
-                json={"command_name": command_name, "command_args": command_args},
+                json={
+                    "command_name": command_name,
+                    "command_args": command_args,
+                    "conversation_name": conversation_name,
+                },
             )
             return response.json()["response"]
         except Exception as e:
