@@ -760,6 +760,48 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
+    def learn_arxiv(
+        self,
+        agent_name: str,
+        query: str = None,
+        arxiv_ids: str = None,
+        max_results: int = 5,
+        collection_number: int = 0,
+    ):
+        try:
+            response = requests.post(
+                headers=self.headers,
+                url=f"{self.base_uri}/api/agent/{agent_name}/learn/arxiv",
+                json={
+                    "query": query,
+                    "arxiv_ids": arxiv_ids,
+                    "max_results": max_results,
+                    "collection_number": collection_number,
+                },
+            )
+            return response.json()["message"]
+        except Exception as e:
+            return self.handle_error(e)
+
+    def agent_reader(
+        self,
+        agent_name: str,
+        reader_name: str,
+        data: dict,
+        collection_number: int = 0,
+    ):
+        if "collection_number" not in data:
+            data["collection_number"] = collection_number
+        try:
+            response = requests.post(
+                headers=self.headers,
+                url=f"{self.base_uri}/api/agent/{agent_name}/reader/{reader_name}",
+                json=data,
+            )
+            return response.json()["message"]
+        except Exception as e:
+            return self.handle_error(e)
+
     def wipe_agent_memories(self, agent_name: str, collection_number: int = 0) -> str:
         try:
             response = requests.delete(
