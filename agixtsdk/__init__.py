@@ -184,7 +184,12 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
-    def new_conversation(self, agent_name: str, conversation_name: str):
+    def new_conversation(
+        self,
+        agent_name: str,
+        conversation_name: str,
+        conversation_content: List[Dict[str, Any]] = [],
+    ) -> List[Dict[str, Any]]:
         try:
             response = requests.post(
                 headers=self.headers,
@@ -192,6 +197,7 @@ class AGiXTSDK:
                 json={
                     "conversation_name": conversation_name,
                     "agent_name": agent_name,
+                    "conversation_content": conversation_content,
                 },
             )
             return response.json()["conversation_history"]
