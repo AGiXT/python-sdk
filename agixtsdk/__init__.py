@@ -853,3 +853,26 @@ class AGiXTSDK:
             return response.json()["memories"]
         except Exception as e:
             return self.handle_error(e)
+
+    def export_agent_memories(self, agent_name: str) -> List[Dict[str, Any]]:
+        try:
+            response = requests.get(
+                headers=self.headers,
+                url=f"{self.base_uri}/api/agent/{agent_name}/memory/export",
+            )
+            return response.json()["memories"]
+        except Exception as e:
+            return self.handle_error(e)
+
+    def import_agent_memories(
+        self, agent_name: str, memories: List[Dict[str, Any]]
+    ) -> str:
+        try:
+            response = requests.post(
+                headers=self.headers,
+                url=f"{self.base_uri}/api/agent/{agent_name}/memory/import",
+                json={"memories": memories},
+            )
+            return response.json()["message"]
+        except Exception as e:
+            return self.handle_error(e)
