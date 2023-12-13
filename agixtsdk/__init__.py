@@ -876,3 +876,42 @@ class AGiXTSDK:
             return response.json()["message"]
         except Exception as e:
             return self.handle_error(e)
+
+    def create_dataset(self, agent_name: str, dataset_name: str, batch_size: int = 4):
+        try:
+            response = requests.post(
+                headers=self.headers,
+                url=f"{self.base_uri}/api/agent/{agent_name}/memory/dataset",
+                json={"dataset_name": dataset_name, "batch_size": batch_size},
+            )
+            return response.json()["message"]
+        except Exception as e:
+            return self.handle_error(e)
+
+    def voice_chat(
+        self,
+        agent_name: str,
+        base64_audio: str,
+        conversation_name: str,
+        conversation_results: int = 4,
+        context_results: int = 4,
+        tts: bool = False,
+    ):
+        try:
+            response = requests.post(
+                headers=self.headers,
+                url=f"{self.base_uri}/api/agent/{agent_name}/command",
+                json={
+                    "command_name": "Chat with Voice",
+                    "command_args": {
+                        "base64_audio": base64_audio,
+                        "conversation_results": conversation_results,
+                        "context_results": context_results,
+                        "tts": tts,
+                    },
+                    "conversation_name": conversation_name,
+                },
+            )
+            return response.json()["response"]
+        except Exception as e:
+            return self.handle_error(e)
