@@ -10,6 +10,7 @@ class AGiXTSDK:
         if not api_key:
             self.headers = {"Content-Type": "application/json"}
         else:
+            api_key.replace("Bearer ", "")
             self.headers = {
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
@@ -915,3 +916,67 @@ class AGiXTSDK:
             return response.json()["response"]
         except Exception as e:
             return self.handle_error(e)
+
+    def execute_command_with_voice(
+        self,
+        agent_name: str,
+        base64_audio,
+        audio_format="m4a",
+        audio_variable="data_to_correlate_with_input",
+        command_name="Store information in my long term memory",
+        command_args={"input": "Voice transcription from user"},
+        tts=False,
+        conversation_name="AGiXT Terminal",
+    ):
+        response = self.execute_command(
+            agent_name=agent_name,
+            command_name=command_name,
+            command_args={
+                "base64_audio": base64_audio,
+                "audio_variable": audio_variable,
+                "audio_format": audio_format,
+                "tts": tts,
+                "command_name": command_name,
+                "command_args": command_args,
+            },
+            conversation_name=conversation_name,
+        )
+        return response
+
+    def prompt_agent_with_voice(
+        self,
+        agent_name: str,
+        base64_audio,
+        audio_format="m4a",
+        audio_variable="user_input",
+        prompt_name="Custom Input",
+        prompt_args={
+            "context_results": 6,
+            "inject_memories_from_collection_number": 0,
+        },
+        tts=False,
+        conversation_name="AGiXT Terminal",
+    ):
+        response = self.execute_command(
+            agent_name=agent_name,
+            command_name="Prompt with Voice",
+            command_args={
+                "base64_audio": base64_audio,
+                "audio_variable": audio_variable,
+                "audio_format": audio_format,
+                "tts": tts,
+                "prompt_name": prompt_name,
+                "prompt_args": prompt_args,
+            },
+            conversation_name=conversation_name,
+        )
+        return response
+
+    def text_to_speech(self, agent_name: str, text: str, conversation_name: str):
+        response = self.execute_command(
+            agent_name=agent_name,
+            command_name="Text to Speech",
+            command_args={"text": text},
+            conversation_name=conversation_name,
+        )
+        return response
