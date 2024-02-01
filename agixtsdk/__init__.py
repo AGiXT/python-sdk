@@ -236,6 +236,24 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
+    def update_conversation_message(
+        self, agent_name: str, conversation_name: str, message: str, new_message: str
+    ) -> str:
+        try:
+            response = requests.put(
+                headers=self.headers,
+                url=f"{self.base_uri}/api/conversation/message",
+                json={
+                    "message": message,
+                    "new_message": new_message,
+                    "agent_name": agent_name,
+                    "conversation_name": conversation_name,
+                },
+            )
+            return response.json()["message"]
+        except Exception as e:
+            return self.handle_error(e)
+
     def prompt_agent(
         self,
         agent_name: str,
