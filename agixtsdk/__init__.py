@@ -32,6 +32,16 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
+    def get_providers_by_service(self, service: str) -> List[str]:
+        try:
+            response = requests.get(
+                headers=self.headers,
+                url=f"{self.base_uri}/api/providers/service/{service}",
+            )
+            return response.json()["providers"]
+        except Exception as e:
+            return self.handle_error(e)
+
     def get_provider_settings(self, provider_name: str) -> Dict[str, Any]:
         try:
             response = requests.get(
@@ -831,9 +841,11 @@ class AGiXTSDK:
         try:
             response = requests.delete(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/agent/{agent_name}/memory"
-                if collection_number == 0
-                else f"{self.base_uri}/api/agent/{agent_name}/memory/{collection_number}",
+                url=(
+                    f"{self.base_uri}/api/agent/{agent_name}/memory"
+                    if collection_number == 0
+                    else f"{self.base_uri}/api/agent/{agent_name}/memory/{collection_number}"
+                ),
             )
             return response.json()["message"]
         except Exception as e:
