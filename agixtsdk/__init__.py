@@ -919,6 +919,30 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
+    def train(
+        self,
+        agent_name: str = "AGiXT",
+        dataset_name: str = "dataset",
+        model_name: str = "unsloth/mistral-7b-v0.2",
+        max_seq_length: int = 16384,
+        huggingface_output_path: str = "JoshXT/finetuned-mistral-7b-v0.2",
+        private_repo: bool = True,
+    ):
+        try:
+            response = requests.post(
+                headers=self.headers,
+                url=f"{self.base_uri}/api/agent/{agent_name}/memory/dataset/{dataset_name}/finetune",
+                json={
+                    "model_name": model_name,
+                    "max_seq_length": max_seq_length,
+                    "huggingface_output_path": huggingface_output_path,
+                    "private_repo": private_repo,
+                },
+            )
+            return response.json()["message"]
+        except Exception as e:
+            return self.handle_error(e)
+
     def voice_chat(
         self,
         agent_name: str,
