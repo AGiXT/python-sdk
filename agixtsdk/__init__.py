@@ -10,9 +10,8 @@ class AGiXTSDK:
         if not api_key:
             self.headers = {"Content-Type": "application/json"}
         else:
-            api_key.replace("Bearer ", "")
             self.headers = {
-                "Authorization": f"Bearer {api_key}",
+                "Authorization": api_key.replace("Bearer ", "").replace("bearer ", ""),
                 "Content-Type": "application/json",
             }
 
