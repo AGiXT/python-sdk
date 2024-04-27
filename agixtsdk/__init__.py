@@ -10,8 +10,9 @@ class AGiXTSDK:
         if not api_key:
             self.headers = {"Content-Type": "application/json"}
         else:
+            api_key = api_key.replace("Bearer ", "").replace("bearer ", "")
             self.headers = {
-                "Authorization": api_key.replace("Bearer ", "").replace("bearer ", ""),
+                "Authorization": f"{api_key}",
                 "Content-Type": "application/json",
             }
 
@@ -118,6 +119,7 @@ class AGiXTSDK:
             response = requests.put(
                 f"{self.base_uri}/api/agent/{agent_name}",
                 json={"settings": settings, "agent_name": agent_name},
+                headers=self.headers,
             )
             return response.json()["message"]
         except Exception as e:
@@ -128,6 +130,7 @@ class AGiXTSDK:
             response = requests.put(
                 f"{self.base_uri}/api/agent/{agent_name}/commands",
                 json={"commands": commands, "agent_name": agent_name},
+                headers=self.headers,
             )
             return response.json()["message"]
         except Exception as e:
