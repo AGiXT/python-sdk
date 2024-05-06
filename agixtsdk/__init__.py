@@ -71,13 +71,22 @@ class AGiXTSDK:
             return self.handle_error(e)
 
     def add_agent(
-        self, agent_name: str, settings: Dict[str, Any] = {}
+        self,
+        agent_name: str,
+        settings: Dict[str, Any] = {},
+        commands: Dict[str, Any] = {},
+        training_urls: List[str] = [],
     ) -> Dict[str, Any]:
         try:
             response = requests.post(
                 headers=self.headers,
                 url=f"{self.base_uri}/api/agent",
-                json={"agent_name": agent_name, "settings": settings},
+                json={
+                    "agent_name": agent_name,
+                    "settings": settings,
+                    "commands": commands,
+                    "training_urls": training_urls,
+                },
             )
             return response.json()
         except Exception as e:
