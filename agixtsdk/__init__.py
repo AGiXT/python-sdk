@@ -1,5 +1,21 @@
+import tiktoken
+import functools
+import uuid
 import requests
-from typing import Dict, List, Any
+import base64
+import time
+import openai
+from datetime import datetime
+from pydub import AudioSegment
+import requests
+from pydantic import BaseModel
+from typing import Dict, List, Any, Optional
+
+
+def get_tokens(text: str) -> int:
+    encoding = tiktoken.get_encoding("cl100k_base")
+    num_tokens = len(encoding.encode(text))
+    return num_tokens
 
 
 class AGiXTSDK:
@@ -962,3 +978,241 @@ class AGiXTSDK:
             conversation_name=conversation_name,
         )
         return response
+
+
+class ChatCompletions(BaseModel):
+    model: str = "NurseGPT"  # This is the agent name
+    messages: List[dict] = None
+    temperature: Optional[float] = 0.9
+    top_p: Optional[float] = 1.0
+    tools: Optional[List[dict]] = None
+    tools_choice: Optional[str] = "auto"
+    n: Optional[int] = 1
+    stream: Optional[bool] = False
+    stop: Optional[List[str]] = None
+    max_tokens: Optional[int] = 4096
+    presence_penalty: Optional[float] = 0.0
+    frequency_penalty: Optional[float] = 0.0
+    logit_bias: Optional[Dict[str, float]] = None
+    user: Optional[str] = "Chat"  # This is the conversation name
+
+
+# Chat Completion Decorator
+def AGiXT_chat(base_uri: str, api_key: str = None):
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(prompt: ChatCompletions):
+            agixt = AGiXTSDK(
+                base_uri=base_uri, api_key=api_key if api_key else base_uri
+            )
+            agent_name = prompt.model  # prompt.model is the agent name
+            conversation_name = prompt.user  # prompt.user is the conversation name
+            agent_config = agixt.get_agentconfig(agent_name=agent_name)
+            agent_settings = (
+                agent_config["settings"] if "settings" in agent_config else {}
+            )
+            images = []
+            new_prompt = ""
+            for message in prompt.messages:
+                if "content" not in message:
+                    continue
+                if isinstance(message["content"], str):
+                    role = message["role"] if "role" in message else "User"
+                    if role.lower() == "system":
+                        if "/" in message["content"]:
+                            new_prompt += f"{message['content']}\n\n"
+                    if role.lower() == "user":
+                        new_prompt += f"{message['content']}\n\n"
+                if isinstance(message["content"], list):
+                    for msg in message["content"]:
+                        if "text" in msg:
+                            role = message["role"] if "role" in message else "User"
+                            if role.lower() == "user":
+                                new_prompt += f"{msg['text']}\n\n"
+                        if "image_url" in msg:
+                            url = (
+                                msg["image_url"]["url"]
+                                if "url" in msg["image_url"]
+                                else msg["image_url"]
+                            )
+                            image_path = f"./WORKSPACE/{uuid.uuid4().hex}.jpg"
+                            if url.startswith("http"):
+                                image = requests.get(url).content
+                            else:
+                                file_type = (
+                                    url.split(",")[0].split("/")[1].split(";")[0]
+                                )
+                                if file_type == "jpeg":
+                                    file_type = "jpg"
+                                file_name = f"{uuid.uuid4().hex}.{file_type}"
+                                image_path = f"./WORKSPACE/{file_name}"
+                                image = base64.b64decode(url.split(",")[1])
+                            with open(image_path, "wb") as f:
+                                f.write(image)
+                            images.append(image_path)
+                        if "audio_url" in msg:
+                            audio_url = (
+                                msg["audio_url"]["url"]
+                                if "url" in msg["audio_url"]
+                                else msg["audio_url"]
+                            )
+                            # If it is not a url, we need to find the file type and convert with pydub
+                            if not audio_url.startswith("http"):
+                                file_type = (
+                                    audio_url.split(",")[0].split("/")[1].split(";")[0]
+                                )
+                                audio_data = base64.b64decode(audio_url.split(",")[1])
+                                audio_path = (
+                                    f"./WORKSPACE/{uuid.uuid4().hex}.{file_type}"
+                                )
+                                with open(audio_path, "wb") as f:
+                                    f.write(audio_data)
+                                audio_url = audio_path
+                            else:
+                                # Download the audio file from the url, get the file type and convert to wav
+                                audio_type = audio_url.split(".")[-1]
+                                audio_url = (
+                                    f"./WORKSPACE/{uuid.uuid4().hex}.{audio_type}"
+                                )
+                                audio_data = requests.get(audio_url).content
+                                with open(audio_url, "wb") as f:
+                                    f.write(audio_data)
+                            wav_file = f"./WORKSPACE/{uuid.uuid4().hex}.wav"
+                            AudioSegment.from_file(audio_url).set_frame_rate(
+                                16000
+                            ).export(wav_file, format="wav")
+                            # Switch this to use the endpoint
+                            openai.api_key = (
+                                agixt.headers["Authorization"]
+                                .replace("Bearer ", "")
+                                .replace("bearer ", "")
+                            )
+                            openai.base_url = f"{agixt.base_uri}/v1/"
+                            with open(wav_file, "rb") as audio_file:
+                                transcription = openai.audio.transcriptions.create(
+                                    model=agent_name, file=audio_file
+                                )
+                            new_prompt += transcription.text
+                        if "video_url" in msg:
+                            video_url = str(
+                                msg["video_url"]["url"]
+                                if "url" in msg["video_url"]
+                                else msg["video_url"]
+                            )
+                            if "collection_number" in msg:
+                                collection_number = int(msg["collection_number"])
+                            else:
+                                collection_number = 0
+                            if video_url.startswith("https://www.youtube.com/watch?v="):
+                                agixt.learn_url(
+                                    agent_name=agent_name,
+                                    url=video_url,
+                                    collection_number=collection_number,
+                                )
+                        if (
+                            "file_url" in msg
+                            or "application_url" in msg
+                            or "text_url" in msg
+                            or "url" in msg
+                        ):
+                            file_url = str(
+                                msg["file_url"]["url"]
+                                if "url" in msg["file_url"]
+                                else msg["file_url"]
+                            )
+                            if (
+                                "collection_number" in message
+                                or "collection_number" in msg
+                            ):
+                                collection_number = int(
+                                    message["collection_number"]
+                                    if "collection_number" in message
+                                    else msg["collection_number"]
+                                )
+                            else:
+                                collection_number = 0
+                            if file_url.startswith("http"):
+                                if file_url.startswith(
+                                    "https://www.youtube.com/watch?v="
+                                ):
+                                    agixt.learn_url(
+                                        agent_name=agent_name,
+                                        url=file_url,
+                                        collection_number=collection_number,
+                                    )
+                                elif file_url.startswith("https://github.com"):
+                                    agixt.learn_github_repo(
+                                        agent_name=agent_name,
+                                        github_repo=file_url,
+                                        github_user=(
+                                            agent_settings["GITHUB_USER"]
+                                            if "GITHUB_USER" in agent_settings
+                                            else None
+                                        ),
+                                        github_token=(
+                                            agent_settings["GITHUB_TOKEN"]
+                                            if "GITHUB_TOKEN" in agent_settings
+                                            else None
+                                        ),
+                                        github_branch=(
+                                            "main"
+                                            if "branch" not in message
+                                            else message["branch"]
+                                        ),
+                                        collection_number=collection_number,
+                                    )
+                                else:
+                                    agixt.learn_url(
+                                        agent_name=agent_name,
+                                        url=file_url,
+                                        collection_number=collection_number,
+                                    )
+                            else:
+                                file_type = (
+                                    file_url.split(",")[0].split("/")[1].split(";")[0]
+                                )
+                                file_data = base64.b64decode(file_url.split(",")[1])
+                                file_path = (
+                                    f"./WORKSPACE/{uuid.uuid4().hex}.{file_type}"
+                                )
+                                with open(file_path, "wb") as f:
+                                    f.write(file_data)
+                                # file name should be a safe timestamp
+                                file_name = f"Uploaded File {datetime.now().strftime('%Y%m%d%H%M%S')}.{file_type}"
+                                agixt.learn_file(
+                                    agent_name=agent_name,
+                                    file_name=f"Uploaded File {uuid.uuid4().hex}.{file_type}",
+                                    file_content=file_data,
+                                    collection_number=collection_number,
+                                )
+                response = func(new_prompt)
+            prompt_tokens = get_tokens(new_prompt)
+            completion_tokens = get_tokens(response)
+            total_tokens = int(prompt_tokens) + int(completion_tokens)
+            res_model = {
+                "id": conversation_name,
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": agent_name,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": str(response),
+                        },
+                        "finish_reason": "stop",
+                        "logprobs": None,
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": completion_tokens,
+                    "total_tokens": total_tokens,
+                },
+            }
+            return res_model
+
+        return wrapper
+
+    return decorator
