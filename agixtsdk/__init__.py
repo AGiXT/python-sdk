@@ -37,7 +37,7 @@ class AGiXTSDK:
 
     def handle_error(self, error) -> str:
         print(f"Error: {error}")
-        return f"Unable to retrieve data."
+        raise Exception(f"Unable to retrieve data. {error}")
 
     def get_providers(self) -> List[str]:
         try:
@@ -1186,8 +1186,8 @@ def AGiXT_chat(base_uri: str, api_key: str = None):
                                     collection_number=collection_number,
                                 )
                 response = func(new_prompt)
-            prompt_tokens = get_tokens(new_prompt)
-            completion_tokens = get_tokens(response)
+            prompt_tokens = get_tokens(str(new_prompt))
+            completion_tokens = get_tokens(str(response))
             total_tokens = int(prompt_tokens) + int(completion_tokens)
             res_model = {
                 "id": conversation_name,
