@@ -1185,7 +1185,7 @@ def AGiXT_chat(base_uri: str, api_key: str = None):
                                     file_content=file_data,
                                     collection_number=collection_number,
                                 )
-                response = func(new_prompt)
+            response = func(new_prompt)
             prompt_tokens = get_tokens(str(new_prompt))
             completion_tokens = get_tokens(str(response))
             total_tokens = int(prompt_tokens) + int(completion_tokens)
