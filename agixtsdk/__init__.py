@@ -9,6 +9,8 @@ from datetime import datetime
 from pydub import AudioSegment
 from pydantic import BaseModel
 from typing import Dict, List, Any, Optional, Callable
+from pathlib import Path
+import os
 
 
 class ChatCompletions(BaseModel):
@@ -986,14 +988,16 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
-    def text_to_speech(self, agent_name: str, text: str, conversation_name: str):
-        response = self.execute_command(
-            agent_name=agent_name,
-            command_name="Text to Speech",
-            command_args={"text": text},
-            conversation_name=conversation_name,
-        )
-        return response
+    def text_to_speech(self, agent_name: str, text: str):
+        try:
+            response = requests.post(
+                headers=self.headers,
+                url=f"{self.base_uri}/api/agent/{agent_name}/text_to_speech",
+                json={"text": text},
+            )
+            return response.json()["url"]
+        except Exception as e:
+            return self.handle_error(e)
 
     # Chat Completion wrapper
     async def chat_completions(
@@ -1007,8 +1011,15 @@ class AGiXTSDK:
         agent_config = self.get_agentconfig(agent_name=agent_name)
         agent_settings = agent_config["settings"] if "settings" in agent_config else {}
         images = []
+        tts = False
+        if "tts_provider" in agent_settings:
+            tts_provider = str(agent_settings["tts_provider"]).lower()
+            if tts_provider != "none" and tts_provider != "":
+                tts = True
         new_prompt = ""
         for message in prompt.messages:
+            if "tts" in message:
+                tts = message["tts"].lower() == "true"
             if "content" not in message:
                 continue
             if isinstance(message["content"], str):
@@ -1171,6 +1182,10 @@ class AGiXTSDK:
             response = await async_func(new_prompt)
         else:
             response = func(new_prompt)
+        if tts:
+            tts_response = self.text_to_speech(agent_name=agent_name, text=response)
+            if tts_response:
+                response = f'{response}\n\n<audio controls><source src="{tts_response}" type="audio/wav"></audio>'
         prompt_tokens = get_tokens(str(new_prompt))
         completion_tokens = get_tokens(str(response))
         total_tokens = int(prompt_tokens) + int(completion_tokens)
