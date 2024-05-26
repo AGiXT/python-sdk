@@ -998,10 +998,10 @@ class ChatCompletions(BaseModel):
 
 
 # Chat Completion Decorator
-def AGiXT_chat(base_uri: str, api_key: str = None):
-    def decorator(func):
+async def AGiXT_chat(base_uri: str, api_key: str = None):
+    async def decorator(func):
         @functools.wraps(func)
-        def wrapper(prompt: ChatCompletions):
+        async def wrapper(prompt: ChatCompletions):
             agixt = AGiXTSDK(
                 base_uri=base_uri, api_key=api_key if api_key else base_uri
             )
@@ -1185,7 +1185,7 @@ def AGiXT_chat(base_uri: str, api_key: str = None):
                                     file_content=file_data,
                                     collection_number=collection_number,
                                 )
-            response = func(new_prompt)
+            response = await func(new_prompt)
             prompt_tokens = get_tokens(str(new_prompt))
             completion_tokens = get_tokens(str(response))
             total_tokens = int(prompt_tokens) + int(completion_tokens)
@@ -1213,6 +1213,6 @@ def AGiXT_chat(base_uri: str, api_key: str = None):
             }
             return res_model
 
-        return wrapper
+        return await wrapper
 
-    return decorator
+    return await decorator
