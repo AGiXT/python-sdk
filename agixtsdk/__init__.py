@@ -12,7 +12,7 @@ from typing import Dict, List, Any, Optional, Callable
 
 
 class ChatCompletions(BaseModel):
-    model: str = "NurseGPT"  # This is the agent name
+    model: str = "gpt4free"  # This is the agent name
     messages: List[dict] = None
     temperature: Optional[float] = 0.9
     top_p: Optional[float] = 1.0
@@ -1168,7 +1168,7 @@ class AGiXTSDK:
                                 collection_number=collection_number,
                             )
         if async_func:
-            response = await func(new_prompt)
+            response = await async_func(new_prompt)
         else:
             response = func(new_prompt)
         prompt_tokens = get_tokens(str(new_prompt))
