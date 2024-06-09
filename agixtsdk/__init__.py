@@ -764,6 +764,7 @@ class AGiXTSDK:
     def positive_feedback(
         self,
         agent_name,
+        message: str,
         user_input: str,
         feedback: str,
         conversation_name: str = "",
@@ -774,6 +775,7 @@ class AGiXTSDK:
                 url=f"{self.base_uri}/api/agent/{agent_name}/feedback",
                 json={
                     "user_input": user_input,
+                    "message": message,
                     "feedback": feedback,
                     "positive": True,
                     "conversation_name": conversation_name,
@@ -786,6 +788,7 @@ class AGiXTSDK:
     def negative_feedback(
         self,
         agent_name,
+        message: str,
         user_input: str,
         feedback: str,
         conversation_name: str = "",
@@ -796,6 +799,7 @@ class AGiXTSDK:
                 url=f"{self.base_uri}/api/agent/{agent_name}/feedback",
                 json={
                     "user_input": user_input,
+                    "message": message,
                     "feedback": feedback,
                     "positive": False,
                     "conversation_name": conversation_name,
