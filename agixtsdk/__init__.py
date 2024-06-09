@@ -761,6 +761,50 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
+    def positive_feedback(
+        self,
+        agent_name,
+        user_input: str,
+        feedback: str,
+        conversation_name: str = "",
+    ) -> str:
+        try:
+            response = requests.post(
+                headers=self.headers,
+                url=f"{self.base_uri}/api/agent/{agent_name}/feedback",
+                json={
+                    "user_input": user_input,
+                    "feedback": feedback,
+                    "positive": True,
+                    "conversation_name": conversation_name,
+                },
+            )
+            return response.json()["message"]
+        except Exception as e:
+            return self.handle_error(e)
+
+    def negative_feedback(
+        self,
+        agent_name,
+        user_input: str,
+        feedback: str,
+        conversation_name: str = "",
+    ) -> str:
+        try:
+            response = requests.post(
+                headers=self.headers,
+                url=f"{self.base_uri}/api/agent/{agent_name}/feedback",
+                json={
+                    "user_input": user_input,
+                    "feedback": feedback,
+                    "positive": False,
+                    "conversation_name": conversation_name,
+                },
+            )
+            return response.json()["message"]
+        except Exception as e:
+            return self.handle_error(e)
+
     def learn_text(
         self, agent_name, user_input: str, text: str, collection_number: int = 0
     ) -> str:
