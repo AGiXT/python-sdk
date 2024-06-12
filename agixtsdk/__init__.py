@@ -810,7 +810,7 @@ class AGiXTSDK:
             return self.handle_error(e)
 
     def learn_text(
-        self, agent_name, user_input: str, text: str, collection_number: int = 0
+        self, agent_name, user_input: str, text: str, collection_number: str = "0"
     ) -> str:
         try:
             response = requests.post(
@@ -826,7 +826,7 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
-    def learn_url(self, agent_name: str, url: str, collection_number: int = 0) -> str:
+    def learn_url(self, agent_name: str, url: str, collection_number: str = "0") -> str:
         try:
             response = requests.post(
                 headers=self.headers,
@@ -845,7 +845,7 @@ class AGiXTSDK:
         agent_name: str,
         file_name: str,
         file_content: str,
-        collection_number: int = 0,
+        collection_number: str = "0",
     ) -> str:
         try:
             response = requests.post(
@@ -869,7 +869,7 @@ class AGiXTSDK:
         github_token: str = None,
         github_branch: str = "main",
         use_agent_settings: bool = False,
-        collection_number: int = 0,
+        collection_number: str = "0",
     ):
         try:
             response = requests.post(
@@ -894,7 +894,7 @@ class AGiXTSDK:
         query: str = None,
         arxiv_ids: str = None,
         max_results: int = 5,
-        collection_number: int = 0,
+        collection_number: str = "0",
     ):
         try:
             response = requests.post(
@@ -916,7 +916,7 @@ class AGiXTSDK:
         agent_name: str,
         reader_name: str,
         data: dict,
-        collection_number: int = 0,
+        collection_number: str = "0",
     ):
         if "collection_number" not in data:
             data["collection_number"] = collection_number
@@ -930,7 +930,7 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
-    def wipe_agent_memories(self, agent_name: str, collection_number: int = 0) -> str:
+    def wipe_agent_memories(self, agent_name: str, collection_number: str = "0") -> str:
         try:
             response = requests.delete(
                 headers=self.headers,
@@ -945,7 +945,10 @@ class AGiXTSDK:
             return self.handle_error(e)
 
     def delete_agent_memory(
-        self, agent_name: str, memory_id: str, collection_number: int = 0
+        self,
+        agent_name: str,
+        memory_id: str,
+        collection_number: str = "0",
     ) -> str:
         try:
             response = requests.delete(
@@ -962,7 +965,7 @@ class AGiXTSDK:
         user_input: str,
         limit: int = 5,
         min_relevance_score: float = 0.0,
-        collection_number: int = 0,
+        collection_number: str = "0",
     ) -> List[Dict[str, Any]]:
         try:
             response = requests.post(
@@ -1007,6 +1010,57 @@ class AGiXTSDK:
                 headers=self.headers,
                 url=f"{self.base_uri}/api/agent/{agent_name}/memory/dataset",
                 json={"dataset_name": dataset_name, "batch_size": batch_size},
+            )
+            return response.json()["message"]
+        except Exception as e:
+            return self.handle_error(e)
+
+    def get_browsed_links(
+        self, agent_name: str, collection_number: str = "0"
+    ) -> List[str]:
+        try:
+            response = requests.get(
+                headers=self.headers,
+                url=f"{self.base_uri}/api/agent/{agent_name}/browsed_links/{collection_number}",
+            )
+            return response.json()["links"]
+        except Exception as e:
+            return self.handle_error(e)
+
+    def delete_browsed_link(
+        self, agent_name: str, link: str, collection_number: str = "0"
+    ) -> str:
+        try:
+            response = requests.delete(
+                headers=self.headers,
+                url=f"{self.base_uri}/api/agent/{agent_name}/browsed_links",
+                json={"link": link, "collection_number": collection_number},
+            )
+            return response.json()["message"]
+        except Exception as e:
+            return self.handle_error(e)
+
+    def get_memories_external_sources(self, agent_name: str, collection_number: str):
+        try:
+            response = requests.get(
+                headers=self.headers,
+                url=f"{self.base_uri}/api/agent/{agent_name}/memory/external_sources/{collection_number}",
+            )
+            return response.json()["external_sources"]
+        except Exception as e:
+            return self.handle_error(e)
+
+    def delete_memory_external_source(
+        self, agent_name: str, source: str, collection_number: str
+    ) -> str:
+        try:
+            response = requests.delete(
+                headers=self.headers,
+                url=f"{self.base_uri}/api/agent/{agent_name}/memory/external_source",
+                json={
+                    "external_source": source,
+                    "collection_number": collection_number,
+                },
             )
             return response.json()["message"]
         except Exception as e:
@@ -1148,9 +1202,9 @@ class AGiXTSDK:
                             else msg["video_url"]
                         )
                         if "collection_number" in msg:
-                            collection_number = int(msg["collection_number"])
+                            collection_number = str(msg["collection_number"])
                         else:
-                            collection_number = 0
+                            collection_number = "0"
                         if video_url.startswith("https://www.youtube.com/watch?v="):
                             self.learn_url(
                                 agent_name=agent_name,
@@ -1169,13 +1223,13 @@ class AGiXTSDK:
                             else msg["file_url"]
                         )
                         if "collection_number" in message or "collection_number" in msg:
-                            collection_number = int(
+                            collection_number = str(
                                 message["collection_number"]
                                 if "collection_number" in message
                                 else msg["collection_number"]
                             )
                         else:
-                            collection_number = 0
+                            collection_number = "0"
                         if file_url.startswith("http"):
                             if file_url.startswith("https://www.youtube.com/watch?v="):
                                 self.learn_url(
