@@ -1260,3 +1260,32 @@ class AGiXTSDK:
             },
         }
         return res_model
+
+    def plan_task(
+        self,
+        agent_name: str,
+        user_input: str,
+        websearch: bool = False,
+        websearch_depth: int = 3,
+        conversation_name: str = "",
+        log_user_input: bool = True,
+        log_output: bool = True,
+        enable_new_command: bool = True,
+    ):
+        try:
+            response = requests.post(
+                headers=self.headers,
+                url=f"{self.base_uri}/api/agent/{agent_name}/plan/task",
+                json={
+                    "user_input": user_input,
+                    "websearch": websearch,
+                    "websearch_depth": websearch_depth,
+                    "conversation_name": conversation_name,
+                    "log_user_input": log_user_input,
+                    "log_output": log_output,
+                    "enable_new_command": enable_new_command,
+                },
+            )
+            return response.json()["response"]
+        except Exception as e:
+            return self.handle_error(e)
