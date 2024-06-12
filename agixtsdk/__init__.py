@@ -209,16 +209,24 @@ class AGiXTSDK:
             return self.handle_error(e)
 
     def get_conversations(self, agent_name: str = "") -> List[str]:
-        if agent_name == "":
-            url = f"{self.base_uri}/api/conversations"
-        else:
-            url = f"{self.base_uri}/api/{agent_name}/conversations"
+        url = f"{self.base_uri}/api/conversations"
         try:
             response = requests.get(
                 headers=self.headers,
                 url=url,
             )
             return response.json()["conversations"]
+        except Exception as e:
+            return self.handle_error(e)
+
+    def get_conversations_with_ids(self) -> List[str]:
+        url = f"{self.base_uri}/api/conversations"
+        try:
+            response = requests.get(
+                headers=self.headers,
+                url=url,
+            )
+            return response.json()["conversations_with_ids"]
         except Exception as e:
             return self.handle_error(e)
 
