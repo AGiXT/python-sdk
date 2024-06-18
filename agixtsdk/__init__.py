@@ -9,8 +9,6 @@ from datetime import datetime
 from pydub import AudioSegment
 from pydantic import BaseModel
 from typing import Dict, List, Any, Optional, Callable
-from pathlib import Path
-import os
 
 
 class ChatCompletions(BaseModel):
@@ -310,6 +308,26 @@ class AGiXTSDK:
                     "message": message,
                     "new_message": new_message,
                     "agent_name": agent_name,
+                    "conversation_name": conversation_name,
+                },
+            )
+            return response.json()["message"]
+        except Exception as e:
+            return self.handle_error(e)
+
+    def new_conversation_message(
+        self,
+        role: str = "user",
+        message: str = "",
+        conversation_name: str = "",
+    ) -> str:
+        try:
+            response = requests.post(
+                headers=self.headers,
+                url=f"{self.base_uri}/api/conversation/message",
+                json={
+                    "role": role,
+                    "message": message,
                     "conversation_name": conversation_name,
                 },
             )
