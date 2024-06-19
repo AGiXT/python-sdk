@@ -1216,6 +1216,11 @@ class AGiXTSDK:
                             .replace("bearer ", "")
                         )
                         openai.base_url = f"{self.base_uri}/v1/"
+                        self.new_conversation_message(
+                            role=agent_name,
+                            message=f"[ACTIVITY] Transcribing audio to text.",
+                            conversation_name=conversation_name,
+                        )
                         with open(wav_file, "rb") as audio_file:
                             transcription = openai.audio.transcriptions.create(
                                 model=agent_name, file=audio_file
@@ -1232,6 +1237,11 @@ class AGiXTSDK:
                         else:
                             collection_number = "0"
                         if video_url.startswith("https://www.youtube.com/watch?v="):
+                            self.new_conversation_message(
+                                role=agent_name,
+                                message=f"[ACTIVITY] Learning video from YouTube.",
+                                conversation_name=conversation_name,
+                            )
                             self.learn_url(
                                 agent_name=agent_name,
                                 url=video_url,
@@ -1258,12 +1268,22 @@ class AGiXTSDK:
                             collection_number = "0"
                         if file_url.startswith("http"):
                             if file_url.startswith("https://www.youtube.com/watch?v="):
+                                self.new_conversation_message(
+                                    role=agent_name,
+                                    message=f"[ACTIVITY] Learning video from YouTube.",
+                                    conversation_name=conversation_name,
+                                )
                                 self.learn_url(
                                     agent_name=agent_name,
                                     url=file_url,
                                     collection_number=collection_number,
                                 )
                             elif file_url.startswith("https://github.com"):
+                                self.new_conversation_message(
+                                    role=agent_name,
+                                    message=f"[ACTIVITY] Learning from GitHub.",
+                                    conversation_name=conversation_name,
+                                )
                                 self.learn_github_repo(
                                     agent_name=agent_name,
                                     github_repo=file_url,
@@ -1285,6 +1305,11 @@ class AGiXTSDK:
                                     collection_number=collection_number,
                                 )
                             else:
+                                self.new_conversation_message(
+                                    role=agent_name,
+                                    message=f"[ACTIVITY] Browsing {file_url} .",
+                                    conversation_name=conversation_name,
+                                )
                                 self.learn_url(
                                     agent_name=agent_name,
                                     url=file_url,
@@ -1300,20 +1325,43 @@ class AGiXTSDK:
                                 f.write(file_data)
                             # file name should be a safe timestamp
                             file_name = f"Uploaded File {datetime.now().strftime('%Y%m%d%H%M%S')}.{file_type}"
+                            self.new_conversation_message(
+                                role=agent_name,
+                                message=f"[ACTIVITY] Learning from uploaded file.",
+                                conversation_name=conversation_name,
+                            )
                             self.learn_file(
                                 agent_name=agent_name,
                                 file_name=f"Uploaded File {uuid.uuid4().hex}.{file_type}",
                                 file_content=file_data,
                                 collection_number=collection_number,
                             )
+        self.new_conversation_message(
+            role="user",
+            message=new_prompt,
+            conversation_name=conversation_name,
+        )
         if async_func:
             response = await async_func(new_prompt)
         else:
             response = func(new_prompt)
+        self.new_conversation_message(
+            role=agent_name,
+            message=response,
+            conversation_name=conversation_name,
+        )
         if tts:
+            self.new_conversation_message(
+                role=agent_name,
+                message=f"[ACTIVITY] Generating audio response.",
+                conversation_name=conversation_name,
+            )
             tts_response = self.text_to_speech(agent_name=agent_name, text=response)
-            if tts_response:
-                response = f'{response}\n\n<audio controls><source src="{tts_response}" type="audio/wav"></audio>'
+            self.new_conversation_message(
+                role=agent_name,
+                message=f'<audio controls><source src="{tts_response}" type="audio/wav"></audio>',
+                conversation_name=conversation_name,
+            )
         prompt_tokens = get_tokens(str(new_prompt))
         completion_tokens = get_tokens(str(response))
         total_tokens = int(prompt_tokens) + int(completion_tokens)
