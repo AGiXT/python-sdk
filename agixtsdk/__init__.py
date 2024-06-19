@@ -266,6 +266,26 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
+    def rename_conversation(
+        self,
+        agent_name: str,
+        conversation_name: str,
+        new_name: str = "/",
+    ):
+        try:
+            response = requests.put(
+                headers=self.headers,
+                url=f"{self.base_uri}/api/conversation",
+                json={
+                    "conversation_name": conversation_name,
+                    "new_conversation_name": new_name,
+                    "agent_name": agent_name,
+                },
+            )
+            return response.json()["conversation_name"]
+        except Exception as e:
+            return self.handle_error(e)
+
     def delete_conversation(self, agent_name: str, conversation_name: str) -> str:
         try:
             response = requests.delete(
