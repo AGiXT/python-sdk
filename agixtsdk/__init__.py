@@ -583,6 +583,7 @@ class AGiXTSDK:
             response = requests.put(
                 f"{self.base_uri}/api/chain/{chain_name}",
                 json={"new_name": new_name},
+                headers=self.headers,
             )
             return response.json()["message"]
         except Exception as e:
@@ -747,6 +748,7 @@ class AGiXTSDK:
         try:
             response = requests.put(
                 f"{self.base_uri}/api/prompt/{prompt_category}/{prompt_name}",
+                headers=self.headers,
                 json={
                     "prompt": prompt,
                     "prompt_name": prompt_name,
