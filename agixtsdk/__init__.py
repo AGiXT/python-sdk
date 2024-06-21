@@ -270,7 +270,7 @@ class AGiXTSDK:
         self,
         agent_name: str,
         conversation_name: str,
-        new_name: str = "/",
+        new_name: str = "-",
     ):
         try:
             response = requests.put(
@@ -1157,7 +1157,9 @@ class AGiXTSDK:
         async_func: Callable = None,
     ):
         agent_name = prompt.model  # prompt.model is the agent name
-        conversation_name = prompt.user  # prompt.user is the conversation name
+        conversation_name = (
+            prompt.user if prompt.user else "-"
+        )  # prompt.user is the conversation name
         agent_config = self.get_agentconfig(agent_name=agent_name)
         agent_settings = agent_config["settings"] if "settings" in agent_config else {}
         images = []
