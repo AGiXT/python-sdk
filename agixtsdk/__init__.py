@@ -632,6 +632,7 @@ class AGiXTSDK:
         try:
             response = requests.put(
                 f"{self.base_uri}/api/chain/{chain_name}/step/{step_number}",
+                headers=self.headers,
                 json={
                     "step_number": step_number,
                     "agent_name": agent_name,
