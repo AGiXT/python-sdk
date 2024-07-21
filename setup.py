@@ -8,7 +8,7 @@ with open(os.path.join(this_directory, "README.md"), encoding="utf-8") as f:
 
 setup(
     name="agixtsdk",
-    version="0.0.56",
+    version="0.0.57",
     description="The AGiXT SDK for Python.",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -16,11 +16,5 @@ setup(
     author_email="josh@devxt.com",
     packages=find_packages(),
     python_requires=">=3.10",
-    install_requires=[
-        "requests",
-        "openai",
-        "pydub",
-        "tiktoken",
-        "pydantic",
-    ],
+    install_requires=["requests", "openai", "pydub", "tiktoken", "pydantic", "pyotp"],
 )
