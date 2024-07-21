@@ -5,6 +5,7 @@ import base64
 import time
 import openai
 import requests
+import pyotp
 from datetime import datetime
 from pydub import AudioSegment
 from pydantic import BaseModel
@@ -34,11 +35,25 @@ def get_tokens(text: str) -> int:
     return num_tokens
 
 
+def parse_response(response: requests.Response):
+    print(f"Status Code: {response.status_code}")
+    print("Response JSON:")
+    if response.status_code == 200:
+        print(response.json())
+    else:
+        print(response.text)
+        assert False
+    print("\n")
+
+
 class AGiXTSDK:
-    def __init__(self, base_uri: str = None, api_key: str = None):
+    def __init__(
+        self, base_uri: str = None, api_key: str = None, verbose: bool = False
+    ):
         if not base_uri:
             base_uri = "http://localhost:7437"
         self.base_uri = base_uri
+        self.verbose = verbose
         if not api_key:
             self.headers = {"Content-Type": "application/json"}
         else:
@@ -55,11 +70,70 @@ class AGiXTSDK:
         print(f"Error: {error}")
         raise Exception(f"Unable to retrieve data. {error}")
 
+    def login(self, email, otp):
+        response = requests.post(
+            f"{self.base_uri}/v1/login",
+            json={"email": email, "token": otp},
+        )
+        if self.verbose:
+            parse_response(response)
+        response = response.json()
+        if "detail" in response:
+            detail = response["detail"]
+            if "?token=" in detail:
+                token = detail.split("token=")[1]
+                self.headers = {"Authorization": token}
+                print(f"Log in at {detail}")
+                return token
+
+    def register_user(self, email, first_name, last_name):
+        login_response = requests.post(
+            f"{self.base_uri}/v1/user",
+            json={
+                "email": email,
+                "first_name": first_name,
+                "last_name": last_name,
+            },
+        )
+        if self.verbose:
+            parse_response(login_response)
+        response = login_response.json()
+        if "otp_uri" in response:
+            mfa_token = str(response["otp_uri"]).split("secret=")[1].split("&")[0]
+            totp = pyotp.TOTP(mfa_token)
+            return self.login(email=email, otp=totp.now())
+        else:
+            return response
+
+    def user_exists(self, email):
+        response = requests.get(f"{self.base_uri}/v1/user/exists?email={email}")
+        if self.verbose:
+            parse_response(response)
+        return response.json()
+
+    def update_user(self, **kwargs):
+        response = requests.put(
+            f"{self.base_uri}/v1/user",
+            headers=self.headers,
+            json={**kwargs},
+        )
+        if self.verbose:
+            parse_response(response)
+        return response.json()
+
+    def get_user(self):
+        response = requests.get(f"{self.base_uri}/v1/user", headers=self.headers)
+        if self.verbose:
+            parse_response(response)
+        return response.json()
+
     def get_providers(self) -> List[str]:
         try:
             response = requests.get(
                 headers=self.headers, url=f"{self.base_uri}/api/provider"
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["providers"]
         except Exception as e:
             return self.handle_error(e)
@@ -70,6 +144,8 @@ class AGiXTSDK:
                 headers=self.headers,
                 url=f"{self.base_uri}/api/providers/service/{service}",
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["providers"]
         except Exception as e:
             return self.handle_error(e)
@@ -80,6 +156,8 @@ class AGiXTSDK:
                 headers=self.headers,
                 url=f"{self.base_uri}/api/provider/{provider_name}",
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["settings"]
         except Exception as e:
             return self.handle_error(e)
@@ -89,6 +167,8 @@ class AGiXTSDK:
             response = requests.get(
                 headers=self.headers, url=f"{self.base_uri}/api/embedding_providers"
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["providers"]
         except Exception as e:
             return self.handle_error(e)
@@ -98,6 +178,8 @@ class AGiXTSDK:
             response = requests.get(
                 headers=self.headers, url=f"{self.base_uri}/api/embedders"
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["embedders"]
         except Exception as e:
             return self.handle_error(e)
@@ -120,6 +202,8 @@ class AGiXTSDK:
                     "training_urls": training_urls,
                 },
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()
         except Exception as e:
             return self.handle_error(e)
@@ -140,6 +224,8 @@ class AGiXTSDK:
                     "commands": commands,
                 },
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()
         except Exception as e:
             return self.handle_error(e)
@@ -151,6 +237,8 @@ class AGiXTSDK:
                 url=f"{self.base_uri}/api/agent/{agent_name}",
                 json={"new_name": new_name},
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()
         except Exception as e:
             return self.handle_error(e)
@@ -162,6 +250,8 @@ class AGiXTSDK:
                 json={"settings": settings, "agent_name": agent_name},
                 headers=self.headers,
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["message"]
         except Exception as e:
             return self.handle_error(e)
@@ -173,6 +263,8 @@ class AGiXTSDK:
                 json={"commands": commands, "agent_name": agent_name},
                 headers=self.headers,
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["message"]
         except Exception as e:
             return self.handle_error(e)
@@ -182,6 +274,8 @@ class AGiXTSDK:
             response = requests.delete(
                 headers=self.headers, url=f"{self.base_uri}/api/agent/{agent_name}"
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["message"]
         except Exception as e:
             return self.handle_error(e)
@@ -193,6 +287,8 @@ class AGiXTSDK:
             response = requests.get(
                 headers=self.headers, url=f"{self.base_uri}/api/agent"
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["agents"]
         except Exception as e:
             return self.handle_error(e)
@@ -202,6 +298,8 @@ class AGiXTSDK:
             response = requests.get(
                 headers=self.headers, url=f"{self.base_uri}/api/agent/{agent_name}"
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["agent"]
         except Exception as e:
             return self.handle_error(e)
@@ -213,6 +311,8 @@ class AGiXTSDK:
                 headers=self.headers,
                 url=url,
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["conversations"]
         except Exception as e:
             return self.handle_error(e)
@@ -224,6 +324,8 @@ class AGiXTSDK:
                 headers=self.headers,
                 url=url,
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["conversations_with_ids"]
         except Exception as e:
             return self.handle_error(e)
@@ -242,6 +344,8 @@ class AGiXTSDK:
                     "page": page,
                 },
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["conversation_history"]
         except Exception as e:
             return self.handle_error(e)
@@ -262,6 +366,8 @@ class AGiXTSDK:
                     "conversation_content": conversation_content,
                 },
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["conversation_history"]
         except Exception as e:
             return self.handle_error(e)
@@ -282,6 +388,8 @@ class AGiXTSDK:
                     "agent_name": agent_name,
                 },
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["conversation_name"]
         except Exception as e:
             return self.handle_error(e)
@@ -296,6 +404,8 @@ class AGiXTSDK:
                     "agent_name": agent_name,
                 },
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["message"]
         except Exception as e:
             return self.handle_error(e)
@@ -313,6 +423,8 @@ class AGiXTSDK:
                     "conversation_name": conversation_name,
                 },
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["message"]
         except Exception as e:
             return self.handle_error(e)
@@ -331,6 +443,8 @@ class AGiXTSDK:
                     "conversation_name": conversation_name,
                 },
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["message"]
         except Exception as e:
             return self.handle_error(e)
@@ -351,6 +465,8 @@ class AGiXTSDK:
                     "conversation_name": conversation_name,
                 },
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["message"]
         except Exception as e:
             return self.handle_error(e)
@@ -370,6 +486,8 @@ class AGiXTSDK:
                     "prompt_args": prompt_args,
                 },
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["response"]
         except Exception as e:
             return self.handle_error(e)
@@ -435,6 +553,8 @@ class AGiXTSDK:
                 headers=self.headers,
                 url=f"{self.base_uri}/api/agent/{agent_name}/command",
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["commands"]
         except Exception as e:
             return self.handle_error(e)
@@ -446,6 +566,8 @@ class AGiXTSDK:
                 url=f"{self.base_uri}/api/agent/{agent_name}/command",
                 json={"command_name": command_name, "enable": enable},
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["message"]
         except Exception as e:
             return self.handle_error(e)
@@ -467,6 +589,8 @@ class AGiXTSDK:
                     "conversation_name": conversation_name,
                 },
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["response"]
         except Exception as e:
             return self.handle_error(e)
@@ -476,6 +600,8 @@ class AGiXTSDK:
             response = requests.get(
                 headers=self.headers, url=f"{self.base_uri}/api/chain"
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()
         except Exception as e:
             return self.handle_error(e)
@@ -485,6 +611,8 @@ class AGiXTSDK:
             response = requests.get(
                 headers=self.headers, url=f"{self.base_uri}/api/chain/{chain_name}"
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["chain"]
         except Exception as e:
             return self.handle_error(e)
@@ -495,6 +623,8 @@ class AGiXTSDK:
                 headers=self.headers,
                 url=f"{self.base_uri}/api/chain/{chain_name}/responses",
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["chain"]
         except Exception as e:
             return self.handle_error(e)
@@ -505,6 +635,8 @@ class AGiXTSDK:
                 headers=self.headers,
                 url=f"{self.base_uri}/api/chain/{chain_name}/args",
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["chain_args"]
         except Exception as e:
             return self.handle_error(e)
@@ -530,6 +662,8 @@ class AGiXTSDK:
                     "chain_args": chain_args,
                 },
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()
         except Exception as e:
             return self.handle_error(e)
@@ -552,6 +686,8 @@ class AGiXTSDK:
                     "chain_args": chain_args,
                 },
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()
         except Exception as e:
             return self.handle_error(e)
@@ -563,6 +699,8 @@ class AGiXTSDK:
                 url=f"{self.base_uri}/api/chain",
                 json={"chain_name": chain_name},
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["message"]
         except Exception as e:
             return self.handle_error(e)
@@ -574,6 +712,8 @@ class AGiXTSDK:
                 url=f"{self.base_uri}/api/chain/import",
                 json={"chain_name": chain_name, "steps": steps},
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["message"]
         except Exception as e:
             return self.handle_error(e)
@@ -585,6 +725,8 @@ class AGiXTSDK:
                 json={"new_name": new_name},
                 headers=self.headers,
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["message"]
         except Exception as e:
             return self.handle_error(e)
@@ -594,6 +736,8 @@ class AGiXTSDK:
             response = requests.delete(
                 headers=self.headers, url=f"{self.base_uri}/api/chain/{chain_name}"
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["message"]
         except Exception as e:
             return self.handle_error(e)
@@ -617,6 +761,8 @@ class AGiXTSDK:
                     "prompt": prompt,
                 },
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["message"]
         except Exception as e:
             return self.handle_error(e)
@@ -640,6 +786,8 @@ class AGiXTSDK:
                     "prompt": prompt,
                 },
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["message"]
         except Exception as e:
             return self.handle_error(e)
@@ -659,6 +807,8 @@ class AGiXTSDK:
                     "new_step_number": new_step_number,
                 },
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["message"]
         except Exception as e:
             return self.handle_error(e)
@@ -669,6 +819,8 @@ class AGiXTSDK:
                 headers=self.headers,
                 url=f"{self.base_uri}/api/chain/{chain_name}/step/{step_number}",
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["message"]
         except Exception as e:
             return self.handle_error(e)
@@ -685,6 +837,8 @@ class AGiXTSDK:
                     "prompt": prompt,
                 },
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["message"]
         except Exception as e:
             return self.handle_error(e)
@@ -697,6 +851,8 @@ class AGiXTSDK:
                 headers=self.headers,
                 url=f"{self.base_uri}/api/prompt/{prompt_category}/{prompt_name}",
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["prompt"]
         except Exception as e:
             return self.handle_error(e)
@@ -707,6 +863,8 @@ class AGiXTSDK:
                 headers=self.headers,
                 url=f"{self.base_uri}/api/prompt/{prompt_category}",
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["prompts"]
         except Exception as e:
             return self.handle_error(e)
@@ -717,6 +875,8 @@ class AGiXTSDK:
                 headers=self.headers,
                 url=f"{self.base_uri}/api/prompt/categories",
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["prompt_categories"]
         except Exception as e:
             return self.handle_error(e)
@@ -729,6 +889,8 @@ class AGiXTSDK:
                 headers=self.headers,
                 url=f"{self.base_uri}/api/prompt/{prompt_category}/{prompt_name}/args",
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["prompt_args"]
         except Exception as e:
             return self.handle_error(e)
@@ -739,6 +901,8 @@ class AGiXTSDK:
                 headers=self.headers,
                 url=f"{self.base_uri}/api/prompt/{prompt_category}/{prompt_name}",
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["message"]
         except Exception as e:
             return self.handle_error(e)
@@ -756,6 +920,8 @@ class AGiXTSDK:
                     "prompt_category": prompt_category,
                 },
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["message"]
         except Exception as e:
             return self.handle_error(e)
@@ -769,6 +935,8 @@ class AGiXTSDK:
                 url=f"{self.base_uri}/api/prompt/{prompt_category}/{prompt_name}",
                 json={"prompt_name": new_name},
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["message"]
         except Exception as e:
             return self.handle_error(e)
@@ -778,6 +946,8 @@ class AGiXTSDK:
             response = requests.get(
                 headers=self.headers, url=f"{self.base_uri}/api/extensions/settings"
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["extension_settings"]
         except Exception as e:
             return self.handle_error(e)
@@ -787,6 +957,8 @@ class AGiXTSDK:
             response = requests.get(
                 headers=self.headers, url=f"{self.base_uri}/api/extensions"
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["extensions"]
         except Exception as e:
             return self.handle_error(e)
@@ -797,6 +969,8 @@ class AGiXTSDK:
                 headers=self.headers,
                 url=f"{self.base_uri}/api/extensions/{command_name}/args",
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["command_args"]
         except Exception as e:
             return self.handle_error(e)
@@ -806,6 +980,8 @@ class AGiXTSDK:
             response = requests.get(
                 headers=self.headers, url=f"{self.base_uri}/api/embedders"
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["embedders"]
         except Exception as e:
             return self.handle_error(e)
@@ -830,6 +1006,8 @@ class AGiXTSDK:
                     "conversation_name": conversation_name,
                 },
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["message"]
         except Exception as e:
             return self.handle_error(e)
@@ -854,6 +1032,8 @@ class AGiXTSDK:
                     "conversation_name": conversation_name,
                 },
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["message"]
         except Exception as e:
             return self.handle_error(e)
@@ -871,6 +1051,8 @@ class AGiXTSDK:
                     "collection_number": collection_number,
                 },
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["message"]
         except Exception as e:
             return self.handle_error(e)
@@ -885,6 +1067,8 @@ class AGiXTSDK:
                     "collection_number": collection_number,
                 },
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["message"]
         except Exception as e:
             return self.handle_error(e)
@@ -906,6 +1090,8 @@ class AGiXTSDK:
                     "collection_number": collection_number,
                 },
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["message"]
         except Exception as e:
             return self.handle_error(e)
@@ -933,6 +1119,8 @@ class AGiXTSDK:
                     "use_agent_settings": use_agent_settings,
                 },
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["message"]
         except Exception as e:
             return self.handle_error(e)
@@ -956,6 +1144,8 @@ class AGiXTSDK:
                     "collection_number": collection_number,
                 },
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["message"]
         except Exception as e:
             return self.handle_error(e)
@@ -975,6 +1165,8 @@ class AGiXTSDK:
                 url=f"{self.base_uri}/api/agent/{agent_name}/reader/{reader_name}",
                 json=data,
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["message"]
         except Exception as e:
             return self.handle_error(e)
@@ -989,6 +1181,8 @@ class AGiXTSDK:
                     else f"{self.base_uri}/api/agent/{agent_name}/memory/{collection_number}"
                 ),
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["message"]
         except Exception as e:
             return self.handle_error(e)
@@ -1004,6 +1198,8 @@ class AGiXTSDK:
                 headers=self.headers,
                 url=f"{self.base_uri}/api/agent/{agent_name}/memory/{collection_number}/{memory_id}",
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["message"]
         except Exception as e:
             return self.handle_error(e)
@@ -1026,6 +1222,8 @@ class AGiXTSDK:
                     "min_relevance_score": min_relevance_score,
                 },
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["memories"]
         except Exception as e:
             return self.handle_error(e)
@@ -1036,6 +1234,8 @@ class AGiXTSDK:
                 headers=self.headers,
                 url=f"{self.base_uri}/api/agent/{agent_name}/memory/export",
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["memories"]
         except Exception as e:
             return self.handle_error(e)
@@ -1049,6 +1249,8 @@ class AGiXTSDK:
                 url=f"{self.base_uri}/api/agent/{agent_name}/memory/import",
                 json={"memories": memories},
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["message"]
         except Exception as e:
             return self.handle_error(e)
@@ -1060,6 +1262,8 @@ class AGiXTSDK:
                 url=f"{self.base_uri}/api/agent/{agent_name}/memory/dataset",
                 json={"dataset_name": dataset_name, "batch_size": batch_size},
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["message"]
         except Exception as e:
             return self.handle_error(e)
@@ -1072,6 +1276,8 @@ class AGiXTSDK:
                 headers=self.headers,
                 url=f"{self.base_uri}/api/agent/{agent_name}/browsed_links/{collection_number}",
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["links"]
         except Exception as e:
             return self.handle_error(e)
@@ -1085,6 +1291,8 @@ class AGiXTSDK:
                 url=f"{self.base_uri}/api/agent/{agent_name}/browsed_links",
                 json={"link": link, "collection_number": collection_number},
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["message"]
         except Exception as e:
             return self.handle_error(e)
@@ -1095,6 +1303,8 @@ class AGiXTSDK:
                 headers=self.headers,
                 url=f"{self.base_uri}/api/agent/{agent_name}/memory/external_sources/{collection_number}",
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["external_sources"]
         except Exception as e:
             return self.handle_error(e)
@@ -1111,6 +1321,8 @@ class AGiXTSDK:
                     "collection_number": collection_number,
                 },
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["message"]
         except Exception as e:
             return self.handle_error(e)
@@ -1135,6 +1347,8 @@ class AGiXTSDK:
                     "private_repo": private_repo,
                 },
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["message"]
         except Exception as e:
             return self.handle_error(e)
@@ -1146,6 +1360,8 @@ class AGiXTSDK:
                 url=f"{self.base_uri}/api/agent/{agent_name}/text_to_speech",
                 json={"text": text},
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["url"]
         except Exception as e:
             return self.handle_error(e)
@@ -1439,6 +1655,8 @@ class AGiXTSDK:
                     "enable_new_command": enable_new_command,
                 },
             )
+            if self.verbose:
+                parse_response(response)
             return response.json()["response"]
         except Exception as e:
             return self.handle_error(e)
