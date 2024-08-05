@@ -1756,3 +1756,184 @@ class AGiXTSDK:
                     new_data[key] = info[item[0]]
             mapped_list.append(new_data)
         return mapped_list
+
+    def get_dpo_response(
+        self,
+        agent_name: str,
+        user_input: str,
+        injected_memories: int = 10,
+        conversation_name: str = "",
+    ) -> Dict[str, Any]:
+        try:
+            response = requests.post(
+                headers=self.headers,
+                url=f"{self.base_uri}/api/agent/{agent_name}/dpo",
+                json={
+                    "user_input": user_input,
+                    "injected_memories": injected_memories,
+                    "conversation_name": conversation_name,
+                },
+            )
+            if self.verbose:
+                parse_response(response)
+            return response.json()
+        except Exception as e:
+            return self.handle_error(e)
+
+    def transcribe_audio(
+        self,
+        file: str,
+        model: str,
+        language: str = None,
+        prompt: str = None,
+        response_format: str = "json",
+        temperature: float = 0.0,
+    ) -> Dict[str, Any]:
+        try:
+            with open(file, "rb") as audio_file:
+                files = {"file": (file, audio_file)}
+                data = {
+                    "model": model,
+                    "language": language,
+                    "prompt": prompt,
+                    "response_format": response_format,
+                    "temperature": temperature,
+                }
+                response = requests.post(
+                    headers=self.headers,
+                    url=f"{self.base_uri}/v1/audio/transcriptions",
+                    files=files,
+                    data=data,
+                )
+            if self.verbose:
+                parse_response(response)
+            return response.json()
+        except Exception as e:
+            return self.handle_error(e)
+
+    def translate_audio(
+        self,
+        file: str,
+        model: str,
+        prompt: str = None,
+        response_format: str = "json",
+        temperature: float = 0.0,
+    ) -> Dict[str, Any]:
+        try:
+            with open(file, "rb") as audio_file:
+                files = {"file": (file, audio_file)}
+                data = {
+                    "model": model,
+                    "prompt": prompt,
+                    "response_format": response_format,
+                    "temperature": temperature,
+                }
+                response = requests.post(
+                    headers=self.headers,
+                    url=f"{self.base_uri}/v1/audio/translations",
+                    files=files,
+                    data=data,
+                )
+            if self.verbose:
+                parse_response(response)
+            return response.json()
+        except Exception as e:
+            return self.handle_error(e)
+
+    def generate_image(
+        self,
+        prompt: str,
+        model: str = "dall-e-3",
+        n: int = 1,
+        size: str = "1024x1024",
+        response_format: str = "url",
+    ) -> Dict[str, Any]:
+        try:
+            response = requests.post(
+                headers=self.headers,
+                url=f"{self.base_uri}/v1/images/generations",
+                json={
+                    "model": model,
+                    "prompt": prompt,
+                    "n": n,
+                    "size": size,
+                    "response_format": response_format,
+                },
+            )
+            if self.verbose:
+                parse_response(response)
+            return response.json()
+        except Exception as e:
+            return self.handle_error(e)
+
+    def oauth2_login(
+        self, provider: str, code: str, referrer: str = None
+    ) -> Dict[str, Any]:
+        try:
+            data = {"code": code}
+            if referrer:
+                data["referrer"] = referrer
+            response = requests.post(
+                headers=self.headers,
+                url=f"{self.base_uri}/v1/oauth2/{provider}",
+                json=data,
+            )
+            if self.verbose:
+                parse_response(response)
+            return response.json()
+        except Exception as e:
+            return self.handle_error(e)
+
+    def update_conversation_message_by_id(
+        self,
+        message_id: str,
+        new_message: str,
+        conversation_name: str,
+    ) -> Dict[str, Any]:
+        try:
+            response = requests.put(
+                headers=self.headers,
+                url=f"{self.base_uri}/api/conversation/message/{message_id}",
+                json={
+                    "new_message": new_message,
+                    "conversation_name": conversation_name,
+                },
+            )
+            if self.verbose:
+                parse_response(response)
+            return response.json()
+        except Exception as e:
+            return self.handle_error(e)
+
+    def delete_conversation_message_by_id(
+        self,
+        message_id: str,
+        conversation_name: str,
+    ) -> Dict[str, Any]:
+        try:
+            response = requests.delete(
+                headers=self.headers,
+                url=f"{self.base_uri}/api/conversation/message/{message_id}",
+                json={"conversation_name": conversation_name},
+            )
+            if self.verbose:
+                parse_response(response)
+            return response.json()
+        except Exception as e:
+            return self.handle_error(e)
+
+    def get_unique_external_sources(
+        self,
+        agent_name: str,
+        collection_number: str = "0",
+    ) -> List[str]:
+        try:
+            response = requests.get(
+                headers=self.headers,
+                url=f"{self.base_uri}/api/agent/{agent_name}/memory/external_sources/{collection_number}",
+            )
+            if self.verbose:
+                parse_response(response)
+            return response.json()["external_sources"]
+        except Exception as e:
+            return self.handle_error(e)
