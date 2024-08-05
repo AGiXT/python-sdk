@@ -114,7 +114,8 @@ class AGiXTSDK:
         if "otp_uri" in response:
             mfa_token = str(response["otp_uri"]).split("secret=")[1].split("&")[0]
             totp = pyotp.TOTP(mfa_token)
-            return self.login(email=email, otp=totp.now())
+            self.login(email=email, otp=totp.now())
+            return response["otp_uri"]
         else:
             return response
 
