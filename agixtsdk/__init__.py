@@ -1675,6 +1675,41 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
+    def _generate_detailed_schema(self, model: Type[BaseModel], depth: int = 0) -> str:
+        """
+        Recursively generates a detailed schema representation of a Pydantic model,
+        including nested models.
+        """
+        fields = model.__annotations__
+        field_descriptions = []
+        indent = "  " * depth
+
+        for field, field_type in fields.items():
+            description = f"{indent}{field}: "
+
+            if get_origin(field_type) == Union:
+                field_type = get_args(field_type)[0]
+
+            if isinstance(field_type, type) and issubclass(field_type, BaseModel):
+                description += f"Nested Model:\n{self._generate_detailed_schema(field_type, depth + 1)}"
+            elif get_origin(field_type) == List:
+                list_type = get_args(field_type)[0]
+                if isinstance(list_type, type) and issubclass(list_type, BaseModel):
+                    description += f"List of Nested Model:\n{self._generate_detailed_schema(list_type, depth + 1)}"
+                else:
+                    description += f"List[{list_type.__name__}]"
+            elif get_origin(field_type) == Dict:
+                key_type, value_type = get_args(field_type)
+                description += f"Dict[{key_type.__name__}, {value_type.__name__}]"
+            elif isinstance(field_type, type) and issubclass(field_type, Enum):
+                enum_values = ", ".join([f"{e.name} = {e.value}" for e in field_type])
+                description += f"{field_type.__name__} (Enum values: {enum_values})"
+            else:
+                description += f"{field_type.__name__}"
+
+            field_descriptions.append(description)
+        return "\n".join(field_descriptions)
+
     def convert_to_model(
         self,
         input_string: str,
@@ -1688,7 +1723,6 @@ class AGiXTSDK:
         Converts a string to a Pydantic model using an AGiXT agent.
 
         Args:
-
         input_string (str): The string to convert to a model.
         model (Type[BaseModel]): The Pydantic model to convert the string to.
         agent_name (str): The name of the AGiXT agent to use for the conversion.
@@ -1697,21 +1731,13 @@ class AGiXTSDK:
         **kwargs: Additional arguments to pass to the AGiXT agent as prompt arguments.
         """
         input_string = str(input_string)
-        fields = model.__annotations__
-        field_descriptions = []
-        for field, field_type in fields.items():
-            description = f"{field}: {field_type}"
-            if get_origin(field_type) == Union:
-                field_type = get_args(field_type)[0]
-            if isinstance(field_type, type) and issubclass(field_type, Enum):
-                enum_values = ", ".join([f"{e.name} = {e.value}" for e in field_type])
-                description += f" (Enum values: {enum_values})"
-            field_descriptions.append(description)
-        schema = "\n".join(field_descriptions)
+        schema = self._generate_detailed_schema(model)
+
         if "user_input" in kwargs:
             del kwargs["user_input"]
         if "schema" in kwargs:
             del kwargs["schema"]
+
         response = self.prompt_agent(
             agent_name=agent_name,
             prompt_name="Convert to Model",
@@ -1721,10 +1747,12 @@ class AGiXTSDK:
                 **kwargs,
             },
         )
+
         if "```json" in response:
             response = response.split("```json")[1].split("```")[0].strip()
         elif "```" in response:
             response = response.split("```")[1].strip()
+
         try:
             response = json.loads(response)
             if response_type == "json":
