@@ -1717,8 +1717,9 @@ class AGiXTSDK:
             self.failures += 1
             if self.failures > max_failures:
                 print(
-                    f"Error: {e} . Failed to convert the response to the model after 3 attempts. Response: {response}"
+                    f"Error: {e} . Failed to convert the response to the model after {max_failures} attempts. Response: {response}"
                 )
+                self.failures = 0
                 return (
                     response
                     if response
@@ -1734,7 +1735,6 @@ class AGiXTSDK:
                 model=model,
                 agent_name=agent_name,
                 max_failures=max_failures,
-                failures=self.failures,
             )
 
     def convert_list_of_dicts(
