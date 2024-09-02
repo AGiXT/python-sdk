@@ -21,7 +21,8 @@ from typing import (
     Union,
 )
 from enum import Enum
-from pydantic import BaseModel
+import inspect
+from typing import get_type_hints
 import json
 
 
@@ -1680,47 +1681,58 @@ class AGiXTSDK:
         Recursively generates a detailed schema representation of a Pydantic model,
         including nested models and complex types.
         """
-        fields = model.__annotations__
+        fields = get_type_hints(model)
         field_descriptions = []
         indent = "  " * depth
 
         for field, field_type in fields.items():
             description = f"{indent}{field}: "
 
+            print(f"Processing field: {field}, type: {field_type}")  # Debug print
+
             origin_type = get_origin(field_type)
             if origin_type is None:
                 origin_type = field_type
 
-            if issubclass(origin_type, BaseModel):
+            print(f"Origin type: {origin_type}")  # Debug print
+
+            if inspect.isclass(origin_type) and issubclass(origin_type, BaseModel):
                 description += f"Nested Model:\n{self._generate_detailed_schema(origin_type, depth + 1)}"
-            elif origin_type == List:
+            elif origin_type == list:
                 list_type = get_args(field_type)[0]
-                if isinstance(list_type, type) and issubclass(list_type, BaseModel):
+                print(f"List type: {list_type}")  # Debug print
+                if inspect.isclass(list_type) and issubclass(list_type, BaseModel):
                     description += f"List of Nested Model:\n{self._generate_detailed_schema(list_type, depth + 1)}"
                 elif get_origin(list_type) == Union:
                     union_types = get_args(list_type)
                     description += f"List of Union:\n"
                     for union_type in union_types:
-                        if issubclass(union_type, BaseModel):
+                        if inspect.isclass(union_type) and issubclass(
+                            union_type, BaseModel
+                        ):
                             description += f"{indent}  - Nested Model:\n{self._generate_detailed_schema(union_type, depth + 2)}"
                         else:
-                            description += f"{indent}  - {union_type.__name__}\n"
+                            description += (
+                                f"{indent}  - {self._get_type_name(union_type)}\n"
+                            )
                 else:
                     description += f"List[{self._get_type_name(list_type)}]"
-            elif origin_type == Dict:
+            elif origin_type == dict:
                 key_type, value_type = get_args(field_type)
                 description += f"Dict[{self._get_type_name(key_type)}, {self._get_type_name(value_type)}]"
             elif origin_type == Union:
                 union_types = get_args(field_type)
                 description += "Union of:\n"
                 for union_type in union_types:
-                    if issubclass(union_type, BaseModel):
+                    if inspect.isclass(union_type) and issubclass(
+                        union_type, BaseModel
+                    ):
                         description += f"{indent}  - Nested Model:\n{self._generate_detailed_schema(union_type, depth + 2)}"
                     else:
                         description += (
                             f"{indent}  - {self._get_type_name(union_type)}\n"
                         )
-            elif issubclass(origin_type, Enum):
+            elif inspect.isclass(origin_type) and issubclass(origin_type, Enum):
                 enum_values = ", ".join([f"{e.name} = {e.value}" for e in origin_type])
                 description += f"{origin_type.__name__} (Enum values: {enum_values})"
             else:
@@ -1758,12 +1770,10 @@ class AGiXTSDK:
         """
         input_string = str(input_string)
         schema = self._generate_detailed_schema(model)
-        
         if "user_input" in kwargs:
             del kwargs["user_input"]
         if "schema" in kwargs:
             del kwargs["schema"]
-        
         response = self.prompt_agent(
             agent_name=agent_name,
             prompt_name="Convert to Model",
@@ -1773,12 +1783,10 @@ class AGiXTSDK:
                 **kwargs,
             },
         )
-        
         if "```json" in response:
             response = response.split("```json")[1].split("```")[0].strip()
         elif "```" in response:
             response = response.split("```")[1].strip()
-        
         try:
             response = json.loads(response)
             if response_type == "json":
@@ -1792,7 +1800,11 @@ class AGiXTSDK:
                     f"Error: {e} . Failed to convert the response to the model after {max_failures} attempts. Response: {response}"
                 )
                 self.failures = 0
-                return response if response else "Failed to convert the response to the model."
+                return (
+                    response
+                    if response
+                    else "Failed to convert the response to the model."
+                )
             else:
                 self.failures = 1
             print(
