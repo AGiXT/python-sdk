@@ -1682,7 +1682,20 @@ class AGiXTSDK:
         agent_name: str = "gpt4free",
         max_failures: int = 3,
         response_type: str = None,
+        **kwargs,
     ):
+        """
+        Converts a string to a Pydantic model using an AGiXT agent.
+
+        Args:
+
+        input_string (str): The string to convert to a model.
+        model (Type[BaseModel]): The Pydantic model to convert the string to.
+        agent_name (str): The name of the AGiXT agent to use for the conversion.
+        max_failures (int): The maximum number of times to retry the conversion if it fails.
+        response_type (str): The type of response to return. Either 'json' or None. None will return the model.
+        **kwargs: Additional arguments to pass to the AGiXT agent as prompt arguments.
+        """
         input_string = str(input_string)
         fields = model.__annotations__
         field_descriptions = []
@@ -1695,12 +1708,17 @@ class AGiXTSDK:
                 description += f" (Enum values: {enum_values})"
             field_descriptions.append(description)
         schema = "\n".join(field_descriptions)
+        if "user_input" in kwargs:
+            del kwargs["user_input"]
+        if "schema" in kwargs:
+            del kwargs["schema"]
         response = self.prompt_agent(
             agent_name=agent_name,
-            prompt_name="Convert to Pydantic Model",
+            prompt_name="Convert to Model",
             prompt_args={
                 "schema": schema,
                 "user_input": input_string,
+                **kwargs,
             },
         )
         if "```json" in response:
@@ -1735,6 +1753,7 @@ class AGiXTSDK:
                 model=model,
                 agent_name=agent_name,
                 max_failures=max_failures,
+                **kwargs,
             )
 
     def convert_list_of_dicts(
