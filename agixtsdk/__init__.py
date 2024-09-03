@@ -1684,38 +1684,56 @@ class AGiXTSDK:
         fields = get_type_hints(model)
         field_descriptions = []
         indent = "  " * depth
-
         for field, field_type in fields.items():
             description = f"{indent}{field}: "
-
+            print(f"Processing field: {field}, type: {field_type}")  # Debug print
             origin_type = get_origin(field_type)
-            args = get_args(field_type)
-
-            if origin_type is Union and type(None) in args:
-                # This is an Optional type
-                non_none_type = next(arg for arg in args if arg is not type(None))
-                description += f"Optional[{self._process_type(non_none_type, depth)}]"
-            elif origin_type is List:
-                item_type = args[0]
-                description += f"List[{self._process_type(item_type, depth)}]"
-            elif origin_type is Dict:
-                key_type, value_type = args
+            if origin_type is None:
+                origin_type = field_type
+            print(f"Origin type: {origin_type}")  # Debug print
+            if inspect.isclass(origin_type) and issubclass(origin_type, BaseModel):
+                description += f"Nested Model:\n{self._generate_detailed_schema(origin_type, depth + 1)}"
+            elif origin_type == list:
+                list_type = get_args(field_type)[0]
+                print(f"List type: {list_type}")  # Debug print
+                if inspect.isclass(list_type) and issubclass(list_type, BaseModel):
+                    description += f"List of Nested Model:\n{self._generate_detailed_schema(list_type, depth + 1)}"
+                elif get_origin(list_type) == Union:
+                    union_types = get_args(list_type)
+                    description += f"List of Union:\n"
+                    for union_type in union_types:
+                        if inspect.isclass(union_type) and issubclass(
+                            union_type, BaseModel
+                        ):
+                            description += f"{indent}  - Nested Model:\n{self._generate_detailed_schema(union_type, depth + 2)}"
+                        else:
+                            description += (
+                                f"{indent}  - {self._get_type_name(union_type)}\n"
+                            )
+                else:
+                    description += f"List[{self._get_type_name(list_type)}]"
+            elif origin_type == dict:
+                key_type, value_type = get_args(field_type)
                 description += f"Dict[{self._get_type_name(key_type)}, {self._get_type_name(value_type)}]"
+            elif origin_type == Union:
+                union_types = get_args(field_type)
+
+                for union_type in union_types:
+                    if inspect.isclass(union_type) and issubclass(
+                        union_type, BaseModel
+                    ):
+                        description += f"{indent}  - Nested Model:\n{self._generate_detailed_schema(union_type, depth + 2)}"
+                    else:
+                        type_name = self._get_type_name(union_type)
+                        if type_name != "NoneType":
+                            description += f"{self._get_type_name(union_type)}\n"
+            elif inspect.isclass(origin_type) and issubclass(origin_type, Enum):
+                enum_values = ", ".join([f"{e.name} = {e.value}" for e in origin_type])
+                description += f"{origin_type.__name__} (Enum values: {enum_values})"
             else:
-                description += self._process_type(field_type, depth)
-
+                description += self._get_type_name(origin_type)
             field_descriptions.append(description)
-
         return "\n".join(field_descriptions)
-
-    def _process_type(self, type_, depth):
-        if inspect.isclass(type_) and issubclass(type_, BaseModel):
-            return f"Nested Model:\n{self._generate_detailed_schema(type_, depth + 1)}"
-        elif inspect.isclass(type_) and issubclass(type_, Enum):
-            enum_values = ", ".join([f"{e.name} = {e.value}" for e in type_])
-            return f"{type_.__name__} (Enum values: {enum_values})"
-        else:
-            return self._get_type_name(type_)
 
     def _get_type_name(self, type_):
         """Helper method to get the name of a type, handling some special cases."""
