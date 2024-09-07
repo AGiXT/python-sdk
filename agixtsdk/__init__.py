@@ -365,6 +365,23 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
+    def fork_conversation(
+        self,
+        conversation_name: str,
+        message_id: str,
+    ):
+        try:
+            response = requests.post(
+                headers=self.headers,
+                url=f"{self.base_uri}/api/conversation/fork",
+                json={"conversation_name": conversation_name, "message_id": message_id},
+            )
+            if self.verbose:
+                parse_response(response)
+            return response.json()["message"]
+        except Exception as e:
+            return self.handle_error(e)
+
     def new_conversation(
         self,
         agent_name: str,
