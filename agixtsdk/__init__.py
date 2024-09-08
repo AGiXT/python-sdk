@@ -995,6 +995,18 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
+    def get_agent_extensions(self, agent_name: str = "AGiXT"):
+        try:
+            response = requests.get(
+                headers=self.headers,
+                url=f"{self.base_uri}/api/agent/{agent_name}/extensions",
+            )
+            if self.verbose:
+                parse_response(response)
+            return response.json()["extensions"]
+        except Exception as e:
+            return self.handle_error(e)
+
     def get_command_args(self, command_name: str) -> Dict[str, Any]:
         try:
             response = requests.get(
