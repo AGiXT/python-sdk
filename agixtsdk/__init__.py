@@ -1,14 +1,3 @@
-import tiktoken
-import uuid
-import requests
-import base64
-import time
-import openai
-import requests
-import pyotp
-from datetime import datetime
-from pydub import AudioSegment
-from pydantic import BaseModel
 from typing import (
     Dict,
     List,
@@ -16,14 +5,25 @@ from typing import (
     Optional,
     Callable,
     Type,
+    Union,
     get_args,
     get_origin,
-    Union,
+    get_type_hints,
 )
+from pydantic import BaseModel
+from pydub import AudioSegment
+from datetime import datetime
 from enum import Enum
+import tiktoken
+import requests
 import inspect
-from typing import get_type_hints
+import base64
+import openai
+import pyotp
+import uuid
+import time
 import json
+import os
 
 
 class ChatCompletions(BaseModel):
@@ -1715,16 +1715,13 @@ class AGiXTSDK:
         indent = "  " * depth
         for field, field_type in fields.items():
             description = f"{indent}{field}: "
-            print(f"Processing field: {field}, type: {field_type}")  # Debug print
             origin_type = get_origin(field_type)
             if origin_type is None:
                 origin_type = field_type
-            print(f"Origin type: {origin_type}")  # Debug print
             if inspect.isclass(origin_type) and issubclass(origin_type, BaseModel):
                 description += f"Nested Model:\n{self._generate_detailed_schema(origin_type, depth + 1)}"
             elif origin_type == list:
                 list_type = get_args(field_type)[0]
-                print(f"List type: {list_type}")  # Debug print
                 if inspect.isclass(list_type) and issubclass(list_type, BaseModel):
                     description += f"List of Nested Model:\n{self._generate_detailed_schema(list_type, depth + 1)}"
                 elif get_origin(list_type) == Union:
@@ -1860,6 +1857,45 @@ class AGiXTSDK:
                     new_data[key] = info[item[0]]
             mapped_list.append(new_data)
         return mapped_list
+
+    def create_extension(
+        self,
+        agent_name: str,
+        extension_name: str,
+        openapi_json_url: str,
+    ):
+        """
+        Create an AGiXT extension for an OpenAPI specification from a JSON URL.
+
+        Parameters:
+        - extension_name (str): The name of the extension to create.
+        - openapi_json_url (str): The URL of the OpenAPI specification in JSON format.
+        """
+        print(
+            f"Creating AGiXT extension for {extension_name}, this will take some time!"
+        )
+        chain_name = self.execute_command(
+            agent_name=agent_name,
+            command_name="Generate Extension from OpenAPI",
+            command_args={
+                "openapi_json_url": openapi_json_url,
+                "extension_name": extension_name,
+            },
+            conversation_name=f"{extension_name} Extension Generation",
+        )
+        extension_download = self.run_chain(
+            chain_name=chain_name,
+            agent_name=agent_name,
+            user_input=f"Create an AGiXT extension for {extension_name}.",
+        )
+        file_name = extension_download.split("/")[-1]
+        extension_file = requests.get(extension_download)
+        extension_dir = os.path.join(os.getcwd(), "extensions")
+        extension_file_path = os.path.join(extension_dir, file_name)
+        os.makedirs(extension_dir, exist_ok=True)
+        with open(extension_file_path, "wb") as f:
+            f.write(extension_file.content)
+        return f"{extension_name} extension created and downloaded to {extension_file_path}"
 
     def get_dpo_response(
         self,
@@ -2041,3 +2077,30 @@ class AGiXTSDK:
             return response.json()["external_sources"]
         except Exception as e:
             return self.handle_error(e)
+
+
+def snake_case(old_str: str = ""):
+    if not old_str:
+        return ""
+    if " " in old_str:
+        old_str = old_str.replace(" ", "")
+    if "@" in old_str:
+        old_str = old_str.replace("@", "_")
+    if "." in old_str:
+        old_str = old_str.replace(".", "_")
+    if "-" in old_str:
+        old_str = old_str.replace("-", "_")
+    if "&" in old_str:
+        old_str = old_str.replace("&", "and")
+    if ":" in old_str:
+        old_str = old_str.replace(":", "_")
+    snake_str = ""
+    for i, char in enumerate(old_str):
+        if char.isupper():
+            if i != 0 and old_str[i - 1].islower():
+                snake_str += "_"
+            if i != len(old_str) - 1 and old_str[i + 1].islower():
+                snake_str += "_"
+        snake_str += char.lower()
+    snake_str = snake_str.strip("_")
+    return snake_str
