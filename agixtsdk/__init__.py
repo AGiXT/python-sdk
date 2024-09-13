@@ -1892,9 +1892,14 @@ class AGiXTSDK:
         extension_file = requests.get(extension_download)
         extension_dir = os.path.join(os.getcwd(), "extensions")
         extension_file_path = os.path.join(extension_dir, file_name)
+        extension_content = extension_file.content
         os.makedirs(extension_dir, exist_ok=True)
         with open(extension_file_path, "wb") as f:
-            f.write(extension_file.content)
+            f.write(f"# Generated from OpenAPI JSON URL: {openapi_json_url}\n".encode())
+            f.write(
+                f"# Date Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n".encode()
+            )
+            f.write(extension_content)
         return f"{extension_name} extension created and downloaded to {extension_file_path}"
 
     def get_dpo_response(
