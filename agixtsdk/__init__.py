@@ -973,6 +973,31 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
+    def get_persona(self, agent_name: str) -> Dict[str, Any]:
+        try:
+            response = requests.get(
+                headers=self.headers,
+                url=f"{self.base_uri}/api/agent/{agent_name}/persona",
+            )
+            if self.verbose:
+                parse_response(response)
+            return response.json()["persona"]
+        except Exception as e:
+            return self.handle_error(e)
+
+    def update_persona(self, agent_name: str, persona: str) -> str:
+        try:
+            response = requests.put(
+                f"{self.base_uri}/api/agent/{agent_name}/persona",
+                headers=self.headers,
+                json={"persona": persona},
+            )
+            if self.verbose:
+                parse_response(response)
+            return response.json()["message"]
+        except Exception as e:
+            return self.handle_error(e)
+
     def get_extension_settings(self) -> Dict[str, Any]:
         try:
             response = requests.get(
