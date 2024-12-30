@@ -1384,7 +1384,7 @@ class AGiXTSDK:
         try:
             response = requests.delete(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/agent/{agent_name}/memory/external_source",
+                url=f"{self.base_uri}/api/agent/{agent_name}/memories/external_source",
                 json={
                     "external_source": source,
                     "collection_number": collection_number,
