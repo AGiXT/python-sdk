@@ -981,7 +981,7 @@ class AGiXTSDK:
             )
             if self.verbose:
                 parse_response(response)
-            return response.json()["persona"]
+            return response.json()["message"]
         except Exception as e:
             return self.handle_error(e)
 
