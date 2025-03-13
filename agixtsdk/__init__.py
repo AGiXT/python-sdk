@@ -2060,25 +2060,29 @@ class AGiXTSDK:
             parse_response(response)
         return response.json()
 
-    def create_company(self, name: str, parent_company_id: Optional[str] = None):
-        params = {"name": name}
+    def create_company(
+        self,
+        name: str,
+        agent_name: str,
+        parent_company_id: Optional[str] = None,
+    ):
+        data = {"name": name, "agent_name": agent_name}
         if parent_company_id:
-            params["parent_company_id"] = parent_company_id
+            data["parent_company_id"] = parent_company_id
         response = requests.post(
             f"{self.base_url}/v1/companies",
             headers=self.headers,
-            params=params,
+            json=data,
         )
         if self.verbose:
             parse_response(response)
         return response.json()
 
     def update_company(self, company_id: str, name: str):
-        params = {"name": name}
         response = requests.put(
             f"{self.base_url}/v1/companies/{company_id}",
             headers=self.headers,
-            params=params,
+            json={"name": name},
         )
         if self.verbose:
             parse_response(response)
