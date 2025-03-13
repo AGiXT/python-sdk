@@ -2054,6 +2054,53 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
+    def get_companies(self):
+        response = requests.get(f"{self.base_url}/v1/companies", headers=self.headers)
+        if self.verbose:
+            parse_response(response)
+        return response.json()
+
+    def create_company(self, name: str, parent_company_id: Optional[str] = None):
+        params = {"name": name}
+        if parent_company_id:
+            params["parent_company_id"] = parent_company_id
+        response = requests.post(
+            f"{self.base_url}/v1/companies",
+            headers=self.headers,
+            params=params,
+        )
+        if self.verbose:
+            parse_response(response)
+        return response.json()
+
+    def update_company(self, company_id: str, name: str):
+        params = {"name": name}
+        response = requests.put(
+            f"{self.base_url}/v1/companies/{company_id}",
+            headers=self.headers,
+            params=params,
+        )
+        if self.verbose:
+            parse_response(response)
+        return response.json()
+
+    def delete_company(self, company_id: str):
+        response = requests.delete(
+            f"{self.base_url}/v1/companies/{company_id}", headers=self.headers
+        )
+        if self.verbose:
+            parse_response(response)
+        return response.json()
+
+    def delete_user_from_company(self, company_id: str, user_id: str):
+        response = requests.delete(
+            f"{self.base_url}/v1/companies/{company_id}/users/{user_id}",
+            headers=self.headers,
+        )
+        if self.verbose:
+            parse_response(response)
+        return response.json()
+
     def update_conversation_message_by_id(
         self,
         message_id: str,
