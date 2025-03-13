@@ -1525,7 +1525,7 @@ class AGiXTSDK:
                             .replace("Bearer ", "")
                             .replace("bearer ", "")
                         )
-                        openai.base_url = f"{self.base_uri}/v1/"
+                        openai.base_uri = f"{self.base_uri}/v1/"
                         self.new_conversation_message(
                             role=agent_name,
                             message=f"[ACTIVITY] Transcribing audio to text.",
@@ -2055,7 +2055,7 @@ class AGiXTSDK:
             return self.handle_error(e)
 
     def get_companies(self):
-        response = requests.get(f"{self.base_url}/v1/companies", headers=self.headers)
+        response = requests.get(f"{self.base_uri}/v1/companies", headers=self.headers)
         if self.verbose:
             parse_response(response)
         return response.json()
@@ -2070,7 +2070,7 @@ class AGiXTSDK:
         if parent_company_id:
             data["parent_company_id"] = parent_company_id
         response = requests.post(
-            f"{self.base_url}/v1/companies",
+            f"{self.base_uri}/v1/companies",
             headers=self.headers,
             json=data,
         )
@@ -2080,7 +2080,7 @@ class AGiXTSDK:
 
     def update_company(self, company_id: str, name: str):
         response = requests.put(
-            f"{self.base_url}/v1/companies/{company_id}",
+            f"{self.base_uri}/v1/companies/{company_id}",
             headers=self.headers,
             json={"name": name},
         )
@@ -2090,7 +2090,7 @@ class AGiXTSDK:
 
     def delete_company(self, company_id: str):
         response = requests.delete(
-            f"{self.base_url}/v1/companies/{company_id}", headers=self.headers
+            f"{self.base_uri}/v1/companies/{company_id}", headers=self.headers
         )
         if self.verbose:
             parse_response(response)
@@ -2098,7 +2098,7 @@ class AGiXTSDK:
 
     def delete_user_from_company(self, company_id: str, user_id: str):
         response = requests.delete(
-            f"{self.base_url}/v1/companies/{company_id}/users/{user_id}",
+            f"{self.base_uri}/v1/companies/{company_id}/users/{user_id}",
             headers=self.headers,
         )
         if self.verbose:
