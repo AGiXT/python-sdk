@@ -97,7 +97,8 @@ class AGiXTSDK:
             if "?token=" in detail:
                 token = detail.split("token=")[1]
                 self.headers = {"Authorization": token}
-                print(f"Log in at {detail}")
+                if self.verbose:
+                    print(f"Log in at {detail}")
                 return token
 
     def register_user(self, email, first_name, last_name):
@@ -2035,6 +2036,21 @@ class AGiXTSDK:
             return response.json()
         except Exception as e:
             return self.handle_error(e)
+
+    def get_oauth2_providers(self):
+        response = requests.get(f"{self.base_uri}/v1/oauth")
+        if self.verbose:
+            parse_response(response)
+        data = response.json()
+        if "providers" in data:
+            return data["providers"]
+        return data
+
+    def get_user_oauth2_connections(self) -> List[str]:
+        response = requests.get(f"{self.base_uri}/v1/oauth2", headers=self.headers)
+        if self.verbose:
+            parse_response(response)
+        return response.json()
 
     def oauth2_login(
         self, provider: str, code: str, referrer: str = None
