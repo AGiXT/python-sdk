@@ -11,7 +11,6 @@ from typing import (
     get_type_hints,
 )
 from pydantic import BaseModel
-from pydub import AudioSegment
 from datetime import datetime
 from enum import Enum
 import tiktoken
@@ -24,7 +23,11 @@ import uuid
 import time
 import json
 import os
+try:
 
+    from pydub import AudioSegment
+except:
+    pass
 
 class ChatCompletions(BaseModel):
     model: str = "gpt4free"  # This is the agent name
@@ -1517,9 +1520,12 @@ class AGiXTSDK:
                             with open(audio_url, "wb") as f:
                                 f.write(audio_data)
                         wav_file = f"./WORKSPACE/{uuid.uuid4().hex}.wav"
-                        AudioSegment.from_file(audio_url).set_frame_rate(16000).export(
+                        try:
+                            AudioSegment.from_file(audio_url).set_frame_rate(16000).export(
                             wav_file, format="wav"
                         )
+                        except:
+                            pass
                         # Switch this to use the endpoint
                         openai.api_key = (
                             self.headers["Authorization"]
@@ -1532,10 +1538,13 @@ class AGiXTSDK:
                             message=f"[ACTIVITY] Transcribing audio to text.",
                             conversation_name=conversation_name,
                         )
-                        with open(wav_file, "rb") as audio_file:
-                            transcription = openai.audio.transcriptions.create(
-                                model=agent_name, file=audio_file
+                        try:
+                            with open(wav_file, "rb") as audio_file:
+                                transcription = openai.audio.transcriptions.create(
+                                    model=agent_name, file=audio_file
                             )
+                        except:
+                            pass
                         new_prompt += transcription.text
                     if "video_url" in msg:
                         video_url = str(
