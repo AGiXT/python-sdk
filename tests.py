@@ -2,6 +2,7 @@
 Comprehensive tests for the AGiXT SDK.
 Tests all SDK functions against the v1 API endpoints.
 """
+
 import pytest
 import uuid
 import time
@@ -24,21 +25,17 @@ class TestAGiXTSDK:
     def setup_class(cls):
         """Set up test fixtures - create SDK instance and test user."""
         cls.sdk = AGiXTSDK(base_uri=BASE_URI, verbose=True)
-        
+
         # Register a test user to get authentication
         test_email = f"testuser_{uuid.uuid4()}@example.com"
-        cls.sdk.register_user(
-            email=test_email,
-            first_name="Test",
-            last_name="User"
-        )
-        
+        cls.sdk.register_user(email=test_email, first_name="Test", last_name="User")
+
         # Store test data for cleanup
         cls.test_agent_ids = []
         cls.test_chain_ids = []
         cls.test_conversation_ids = []
         cls.test_prompt_ids = []
-        
+
         # Create a test agent for agent-dependent tests
         cls.test_agent_name = f"TestAgent_{uuid.uuid4().hex[:8]}"
         result = cls.sdk.add_agent(agent_name=cls.test_agent_name, settings={})
@@ -63,21 +60,21 @@ class TestAGiXTSDK:
                 cls.sdk.delete_agent(agent_id)
             except Exception:
                 pass
-        
+
         # Delete test chains
         for chain_id in cls.test_chain_ids:
             try:
                 cls.sdk.delete_chain(chain_id)
             except Exception:
                 pass
-        
+
         # Delete test conversations
         for conv_id in cls.test_conversation_ids:
             try:
                 cls.sdk.delete_conversation(conv_id)
             except Exception:
                 pass
-        
+
         # Delete test prompts
         for prompt_id in cls.test_prompt_ids:
             try:
@@ -154,7 +151,7 @@ class TestAGiXTSDK:
         result = self.sdk.add_agent(agent_name=agent_name, settings={})
         assert result is not None
         print(f"Add agent result: {result}")
-        
+
         # Extract and store agent ID for cleanup
         if isinstance(result, dict):
             if "id" in result:
@@ -171,8 +168,7 @@ class TestAGiXTSDK:
     def test_update_agent_settings(self):
         """Test updating agent settings."""
         result = self.sdk.update_agent_settings(
-            agent_id=self.test_agent_id,
-            settings={"test_setting": "test_value"}
+            agent_id=self.test_agent_id, settings={"test_setting": "test_value"}
         )
         assert result is not None
         print(f"Update agent settings result: {result}")
@@ -180,8 +176,7 @@ class TestAGiXTSDK:
     def test_update_agent_commands(self):
         """Test updating agent commands."""
         result = self.sdk.update_agent_commands(
-            agent_id=self.test_agent_id,
-            commands={}
+            agent_id=self.test_agent_id, commands={}
         )
         assert result is not None
         print(f"Update agent commands result: {result}")
@@ -189,10 +184,7 @@ class TestAGiXTSDK:
     def test_rename_agent(self):
         """Test renaming an agent."""
         new_name = f"RenamedAgent_{uuid.uuid4().hex[:8]}"
-        result = self.sdk.rename_agent(
-            agent_id=self.test_agent_id,
-            new_name=new_name
-        )
+        result = self.sdk.rename_agent(agent_id=self.test_agent_id, new_name=new_name)
         assert result is not None
         print(f"Rename agent result: {result}")
 
@@ -211,8 +203,7 @@ class TestAGiXTSDK:
     def test_update_persona(self):
         """Test updating agent persona."""
         result = self.sdk.update_persona(
-            agent_id=self.test_agent_id,
-            persona="Test persona description"
+            agent_id=self.test_agent_id, persona="Test persona description"
         )
         assert result is not None
         print(f"Update persona result: {result}")
@@ -239,11 +230,11 @@ class TestAGiXTSDK:
         result = self.sdk.new_conversation(
             agent_id=self.test_agent_id,
             conversation_name=conv_name,
-            conversation_content=[]
+            conversation_content=[],
         )
         assert result is not None
         print(f"New conversation result: {result}")
-        
+
         # Store conversation ID for cleanup and further tests
         if isinstance(result, dict):
             if "id" in result:
@@ -255,39 +246,36 @@ class TestAGiXTSDK:
 
     def test_get_conversation(self):
         """Test getting a conversation."""
-        if not hasattr(self, 'test_conversation_id'):
+        if not hasattr(self, "test_conversation_id"):
             pytest.skip("No test conversation available")
-        
+
         result = self.sdk.get_conversation(
-            conversation_id=self.test_conversation_id,
-            limit=100,
-            page=1
+            conversation_id=self.test_conversation_id, limit=100, page=1
         )
         assert result is not None
         print(f"Get conversation result: {result}")
 
     def test_rename_conversation(self):
         """Test renaming a conversation."""
-        if not hasattr(self, 'test_conversation_id'):
+        if not hasattr(self, "test_conversation_id"):
             pytest.skip("No test conversation available")
-        
+
         new_name = f"RenamedConv_{uuid.uuid4().hex[:8]}"
         result = self.sdk.rename_conversation(
-            conversation_id=self.test_conversation_id,
-            new_name=new_name
+            conversation_id=self.test_conversation_id, new_name=new_name
         )
         assert result is not None
         print(f"Rename conversation result: {result}")
 
     def test_new_conversation_message(self):
         """Test adding a message to a conversation."""
-        if not hasattr(self, 'test_conversation_id'):
+        if not hasattr(self, "test_conversation_id"):
             pytest.skip("No test conversation available")
-        
+
         result = self.sdk.new_conversation_message(
             role="user",
             message="Test message",
-            conversation_id=self.test_conversation_id
+            conversation_id=self.test_conversation_id,
         )
         assert result is not None
         print(f"New conversation message result: {result}")
@@ -308,7 +296,7 @@ class TestAGiXTSDK:
         result = self.sdk.add_chain(chain_name=chain_name)
         assert result is not None
         print(f"Add chain result: {result}")
-        
+
         # Store chain ID for cleanup and further tests
         if isinstance(result, dict):
             if "id" in result:
@@ -320,50 +308,44 @@ class TestAGiXTSDK:
 
     def test_get_chain(self):
         """Test getting a chain."""
-        if not hasattr(self, 'test_chain_id'):
+        if not hasattr(self, "test_chain_id"):
             pytest.skip("No test chain available")
-        
+
         result = self.sdk.get_chain(self.test_chain_id)
         assert result is not None
         print(f"Get chain result: {result}")
 
     def test_get_chain_args(self):
         """Test getting chain arguments."""
-        if not hasattr(self, 'test_chain_id'):
+        if not hasattr(self, "test_chain_id"):
             pytest.skip("No test chain available")
-        
+
         result = self.sdk.get_chain_args(self.test_chain_id)
         # May be empty for chains without args
         print(f"Get chain args result: {result}")
 
     def test_get_chain_responses(self):
         """Test getting chain responses."""
-        if not hasattr(self, 'test_chain_id'):
+        if not hasattr(self, "test_chain_id"):
             pytest.skip("No test chain available")
-        
+
         result = self.sdk.get_chain_responses(self.test_chain_id)
         print(f"Get chain responses result: {result}")
 
     def test_rename_chain(self):
         """Test renaming a chain."""
-        if not hasattr(self, 'test_chain_id'):
+        if not hasattr(self, "test_chain_id"):
             pytest.skip("No test chain available")
-        
+
         new_name = f"RenamedChain_{uuid.uuid4().hex[:8]}"
-        result = self.sdk.rename_chain(
-            chain_id=self.test_chain_id,
-            new_name=new_name
-        )
+        result = self.sdk.rename_chain(chain_id=self.test_chain_id, new_name=new_name)
         assert result is not None
         print(f"Rename chain result: {result}")
 
     def test_import_chain(self):
         """Test importing a chain."""
         chain_name = f"ImportedChain_{uuid.uuid4().hex[:8]}"
-        result = self.sdk.import_chain(
-            chain_name=chain_name,
-            steps={}
-        )
+        result = self.sdk.import_chain(chain_name=chain_name, steps={})
         print(f"Import chain result: {result}")
 
     # ==========================================================================
@@ -374,7 +356,9 @@ class TestAGiXTSDK:
         """Test getting all prompts."""
         result = self.sdk.get_prompts()
         assert result is not None
-        print(f"Get prompts result: {len(result) if isinstance(result, list) else result}")
+        print(
+            f"Get prompts result: {len(result) if isinstance(result, list) else result}"
+        )
 
     def test_get_prompt_categories(self):
         """Test getting prompt categories."""
@@ -388,11 +372,11 @@ class TestAGiXTSDK:
         result = self.sdk.add_prompt(
             prompt_name=prompt_name,
             prompt="This is a test prompt with {input}",
-            prompt_category="Default"
+            prompt_category="Default",
         )
         assert result is not None
         print(f"Add prompt result: {result}")
-        
+
         # Store prompt ID for cleanup and further tests
         if isinstance(result, dict):
             if "id" in result:
@@ -404,42 +388,40 @@ class TestAGiXTSDK:
 
     def test_get_prompt(self):
         """Test getting a prompt."""
-        if not hasattr(self, 'test_prompt_id'):
+        if not hasattr(self, "test_prompt_id"):
             pytest.skip("No test prompt available")
-        
+
         result = self.sdk.get_prompt(self.test_prompt_id)
         assert result is not None
         print(f"Get prompt result: {result}")
 
     def test_get_prompt_args(self):
         """Test getting prompt arguments."""
-        if not hasattr(self, 'test_prompt_id'):
+        if not hasattr(self, "test_prompt_id"):
             pytest.skip("No test prompt available")
-        
+
         result = self.sdk.get_prompt_args(self.test_prompt_id)
         print(f"Get prompt args result: {result}")
 
     def test_update_prompt(self):
         """Test updating a prompt."""
-        if not hasattr(self, 'test_prompt_id'):
+        if not hasattr(self, "test_prompt_id"):
             pytest.skip("No test prompt available")
-        
+
         result = self.sdk.update_prompt(
-            prompt_id=self.test_prompt_id,
-            prompt="Updated test prompt with {input}"
+            prompt_id=self.test_prompt_id, prompt="Updated test prompt with {input}"
         )
         assert result is not None
         print(f"Update prompt result: {result}")
 
     def test_rename_prompt(self):
         """Test renaming a prompt."""
-        if not hasattr(self, 'test_prompt_id'):
+        if not hasattr(self, "test_prompt_id"):
             pytest.skip("No test prompt available")
-        
+
         new_name = f"RenamedPrompt_{uuid.uuid4().hex[:8]}"
         result = self.sdk.rename_prompt(
-            prompt_id=self.test_prompt_id,
-            new_name=new_name
+            prompt_id=self.test_prompt_id, new_name=new_name
         )
         assert result is not None
         print(f"Rename prompt result: {result}")
@@ -474,7 +456,7 @@ class TestAGiXTSDK:
             agent_id=self.test_agent_id,
             user_input="Learn this information",
             text="This is test content to learn.",
-            collection_number="0"
+            collection_number="0",
         )
         assert result is not None
         print(f"Learn text result: {result}")
@@ -485,7 +467,7 @@ class TestAGiXTSDK:
             agent_id=self.test_agent_id,
             user_input="test",
             limit=10,
-            min_relevance_score=0.0
+            min_relevance_score=0.0,
         )
         # May be empty if no memories yet
         print(f"Get agent memories result: {result}")
@@ -498,16 +480,14 @@ class TestAGiXTSDK:
     def test_get_browsed_links(self):
         """Test getting browsed links."""
         result = self.sdk.get_browsed_links(
-            agent_id=self.test_agent_id,
-            collection_number="0"
+            agent_id=self.test_agent_id, collection_number="0"
         )
         print(f"Get browsed links result: {result}")
 
     def test_get_memories_external_sources(self):
         """Test getting memories external sources."""
         result = self.sdk.get_memories_external_sources(
-            agent_id=self.test_agent_id,
-            collection_number="0"
+            agent_id=self.test_agent_id, collection_number="0"
         )
         print(f"Get memories external sources result: {result}")
 
@@ -523,7 +503,7 @@ class TestAGiXTSDK:
             prompt_args={
                 "user_input": "Hello, this is a test.",
                 "disable_memory": True,
-            }
+            },
         )
         # May fail if agent is not configured, but endpoint should respond
         print(f"Prompt agent result: {result}")
@@ -539,7 +519,7 @@ class TestAGiXTSDK:
             message="Good response",
             user_input="Test input",
             feedback="Great job!",
-            conversation_id=""
+            conversation_id="",
         )
         print(f"Positive feedback result: {result}")
 
@@ -550,7 +530,7 @@ class TestAGiXTSDK:
             message="Bad response",
             user_input="Test input",
             feedback="Could be better",
-            conversation_id=""
+            conversation_id="",
         )
         print(f"Negative feedback result: {result}")
 
@@ -560,19 +540,19 @@ class TestAGiXTSDK:
 
     def test_get_agent_id_by_name(self):
         """Test getting agent ID by name."""
-        if hasattr(self.sdk, 'get_agent_id_by_name'):
+        if hasattr(self.sdk, "get_agent_id_by_name"):
             result = self.sdk.get_agent_id_by_name("XT")
             print(f"Get agent ID by name result: {result}")
 
     def test_get_chain_id_by_name(self):
         """Test getting chain ID by name."""
-        if hasattr(self.sdk, 'get_chain_id_by_name'):
+        if hasattr(self.sdk, "get_chain_id_by_name"):
             result = self.sdk.get_chain_id_by_name("Smart Chat")
             print(f"Get chain ID by name result: {result}")
 
     def test_get_conversation_id_by_name(self):
         """Test getting conversation ID by name."""
-        if hasattr(self.sdk, 'get_conversation_id_by_name'):
+        if hasattr(self.sdk, "get_conversation_id_by_name"):
             result = self.sdk.get_conversation_id_by_name("Chat")
             print(f"Get conversation ID by name result: {result}")
 
@@ -584,10 +564,8 @@ class TestAGiXTSDK:
         """Test chat completions endpoint."""
         result = self.sdk.chat_completions(
             model="XT",  # Default agent name
-            messages=[
-                {"role": "user", "content": "Hello, this is a test."}
-            ],
-            user="test_conversation"
+            messages=[{"role": "user", "content": "Hello, this is a test."}],
+            user="test_conversation",
         )
         # This may timeout or require proper agent setup
         print(f"Chat completions result: {result}")
@@ -600,25 +578,21 @@ class TestAGiXTSDKCleanup:
     def setup_class(cls):
         """Set up for cleanup tests."""
         cls.sdk = AGiXTSDK(base_uri=BASE_URI, verbose=True)
-        
+
         # Register a test user
         test_email = f"cleanup_test_{uuid.uuid4()}@example.com"
-        cls.sdk.register_user(
-            email=test_email,
-            first_name="Cleanup",
-            last_name="User"
-        )
+        cls.sdk.register_user(email=test_email, first_name="Cleanup", last_name="User")
 
     def test_delete_agent(self):
         """Test deleting an agent."""
         # Create an agent to delete
         agent_name = f"DeleteTestAgent_{uuid.uuid4().hex[:8]}"
         result = self.sdk.add_agent(agent_name=agent_name, settings={})
-        
+
         agent_id = None
         if isinstance(result, dict):
             agent_id = result.get("id") or result.get("agent_id")
-        
+
         if not agent_id:
             # Try to find by name
             agents = self.sdk.get_agents()
@@ -626,7 +600,7 @@ class TestAGiXTSDKCleanup:
                 if isinstance(agent, dict) and agent.get("name") == agent_name:
                     agent_id = agent.get("id")
                     break
-        
+
         if agent_id:
             delete_result = self.sdk.delete_agent(agent_id)
             assert delete_result is not None
@@ -639,11 +613,11 @@ class TestAGiXTSDKCleanup:
         # Create a chain to delete
         chain_name = f"DeleteTestChain_{uuid.uuid4().hex[:8]}"
         result = self.sdk.add_chain(chain_name=chain_name)
-        
+
         chain_id = None
         if isinstance(result, dict):
             chain_id = result.get("id") or result.get("chain_id")
-        
+
         if chain_id:
             delete_result = self.sdk.delete_chain(chain_id)
             assert delete_result is not None
@@ -656,32 +630,30 @@ class TestAGiXTSDKCleanup:
         # First create an agent for the conversation
         agent_name = f"ConvDeleteAgent_{uuid.uuid4().hex[:8]}"
         agent_result = self.sdk.add_agent(agent_name=agent_name, settings={})
-        
+
         agent_id = None
         if isinstance(agent_result, dict):
             agent_id = agent_result.get("id") or agent_result.get("agent_id")
-        
+
         if not agent_id:
             pytest.skip("Could not create agent for conversation deletion test")
             return
-        
+
         # Create a conversation to delete
         conv_name = f"DeleteTestConv_{uuid.uuid4().hex[:8]}"
         result = self.sdk.new_conversation(
-            agent_id=agent_id,
-            conversation_name=conv_name,
-            conversation_content=[]
+            agent_id=agent_id, conversation_name=conv_name, conversation_content=[]
         )
-        
+
         conv_id = None
         if isinstance(result, dict):
             conv_id = result.get("id") or result.get("conversation_id")
-        
+
         if conv_id:
             delete_result = self.sdk.delete_conversation(conv_id)
             assert delete_result is not None
             print(f"Delete conversation result: {delete_result}")
-        
+
         # Clean up the agent
         try:
             self.sdk.delete_agent(agent_id)
@@ -693,15 +665,13 @@ class TestAGiXTSDKCleanup:
         # Create a prompt to delete
         prompt_name = f"DeleteTestPrompt_{uuid.uuid4().hex[:8]}"
         result = self.sdk.add_prompt(
-            prompt_name=prompt_name,
-            prompt="Test prompt",
-            prompt_category="Default"
+            prompt_name=prompt_name, prompt="Test prompt", prompt_category="Default"
         )
-        
+
         prompt_id = None
         if isinstance(result, dict):
             prompt_id = result.get("id") or result.get("prompt_id")
-        
+
         if prompt_id:
             delete_result = self.sdk.delete_prompt(prompt_id)
             assert delete_result is not None
