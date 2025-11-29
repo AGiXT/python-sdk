@@ -23,11 +23,13 @@ import uuid
 import time
 import json
 import os
+
 try:
 
     from pydub import AudioSegment
 except:
     pass
+
 
 class ChatCompletions(BaseModel):
     model: str = "gpt4free"  # This is the agent name
@@ -146,10 +148,11 @@ class AGiXTSDK:
             parse_response(response)
         return response.json()
 
-    def get_providers(self) -> List[str]:
+    def get_providers(self) -> List[Dict[str, Any]]:
+        """Get all available providers with their details."""
         try:
             response = requests.get(
-                headers=self.headers, url=f"{self.base_uri}/api/provider"
+                headers=self.headers, url=f"{self.base_uri}/v1/providers"
             )
             if self.verbose:
                 parse_response(response)
@@ -158,48 +161,63 @@ class AGiXTSDK:
             return self.handle_error(e)
 
     def get_providers_by_service(self, service: str) -> List[str]:
+        """Get providers filtered by service type."""
         try:
-            response = requests.get(
-                headers=self.headers,
-                url=f"{self.base_uri}/api/providers/service/{service}",
+            providers = self.get_providers()
+            # Filter providers by service if they have service info
+            filtered = []
+            for provider in providers:
+                if isinstance(provider, dict):
+                    if provider.get("service") == service:
+                        filtered.append(provider.get("name", provider))
+                else:
+                    filtered.append(provider)
+            return (
+                filtered
+                if filtered
+                else [p.get("name", p) if isinstance(p, dict) else p for p in providers]
             )
-            if self.verbose:
-                parse_response(response)
-            return response.json()["providers"]
         except Exception as e:
             return self.handle_error(e)
 
     def get_provider_settings(self, provider_name: str) -> Dict[str, Any]:
+        """Get settings for a specific provider."""
         try:
-            response = requests.get(
-                headers=self.headers,
-                url=f"{self.base_uri}/api/provider/{provider_name}",
-            )
-            if self.verbose:
-                parse_response(response)
-            return response.json()["settings"]
+            providers = self.get_providers()
+            for provider in providers:
+                if isinstance(provider, dict) and provider.get("name") == provider_name:
+                    return provider.get("settings", provider)
+            return {}
         except Exception as e:
             return self.handle_error(e)
 
     def get_embed_providers(self) -> List[str]:
+        """Get embedding providers."""
         try:
-            response = requests.get(
-                headers=self.headers, url=f"{self.base_uri}/api/embedding_providers"
-            )
-            if self.verbose:
-                parse_response(response)
-            return response.json()["providers"]
+            providers = self.get_providers()
+            # Filter for embedding providers
+            embed_providers = []
+            for provider in providers:
+                if isinstance(provider, dict):
+                    if provider.get("supports_embeddings", False):
+                        embed_providers.append(provider.get("name", provider))
+                else:
+                    embed_providers.append(provider)
+            return embed_providers
         except Exception as e:
             return self.handle_error(e)
 
     def get_embedders(self) -> Dict[str, Any]:
+        """Get all embedders."""
         try:
-            response = requests.get(
-                headers=self.headers, url=f"{self.base_uri}/api/embedders"
-            )
-            if self.verbose:
-                parse_response(response)
-            return response.json()["embedders"]
+            providers = self.get_providers()
+            embedders = {}
+            for provider in providers:
+                if isinstance(provider, dict) and provider.get(
+                    "supports_embeddings", False
+                ):
+                    embedders[provider.get("name")] = provider
+            return embedders
         except Exception as e:
             return self.handle_error(e)
 
@@ -210,10 +228,11 @@ class AGiXTSDK:
         commands: Dict[str, Any] = {},
         training_urls: List[str] = [],
     ) -> Dict[str, Any]:
+        """Create a new agent. Returns agent info including agent_id."""
         try:
             response = requests.post(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/agent",
+                url=f"{self.base_uri}/v1/agent",
                 json={
                     "agent_name": agent_name,
                     "settings": settings,
@@ -233,10 +252,11 @@ class AGiXTSDK:
         settings: Dict[str, Any] = {},
         commands: Dict[str, Any] = {},
     ) -> Dict[str, Any]:
+        """Import an agent configuration."""
         try:
             response = requests.post(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/agent/import",
+                url=f"{self.base_uri}/v1/agent/import",
                 json={
                     "agent_name": agent_name,
                     "settings": settings,
@@ -249,11 +269,12 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
-    def rename_agent(self, agent_name: str, new_name: str) -> str:
+    def rename_agent(self, agent_id: str, new_name: str) -> str:
+        """Rename an agent by ID."""
         try:
             response = requests.patch(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/agent/{agent_name}",
+                url=f"{self.base_uri}/v1/agent/{agent_id}",
                 json={"new_name": new_name},
             )
             if self.verbose:
@@ -262,11 +283,19 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
-    def update_agent_settings(self, agent_name: str, settings: Dict[str, Any]) -> str:
+    def update_agent_settings(
+        self, agent_id: str, settings: Dict[str, Any], agent_name: str = ""
+    ) -> str:
+        """Update agent settings by ID."""
         try:
             response = requests.put(
-                f"{self.base_uri}/api/agent/{agent_name}",
-                json={"settings": settings, "agent_name": agent_name},
+                f"{self.base_uri}/v1/agent/{agent_id}",
+                json={
+                    "agent_name": agent_name,
+                    "settings": settings,
+                    "commands": {},
+                    "training_urls": [],
+                },
                 headers=self.headers,
             )
             if self.verbose:
@@ -275,11 +304,12 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
-    def update_agent_commands(self, agent_name: str, commands: Dict[str, Any]) -> str:
+    def update_agent_commands(self, agent_id: str, commands: Dict[str, Any]) -> str:
+        """Update agent commands by ID."""
         try:
             response = requests.put(
-                f"{self.base_uri}/api/agent/{agent_name}/commands",
-                json={"commands": commands, "agent_name": agent_name},
+                f"{self.base_uri}/v1/agent/{agent_id}/commands",
+                json={"commands": commands},
                 headers=self.headers,
             )
             if self.verbose:
@@ -288,10 +318,11 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
-    def delete_agent(self, agent_name: str) -> str:
+    def delete_agent(self, agent_id: str) -> str:
+        """Delete an agent by ID."""
         try:
             response = requests.delete(
-                headers=self.headers, url=f"{self.base_uri}/api/agent/{agent_name}"
+                headers=self.headers, url=f"{self.base_uri}/v1/agent/{agent_id}"
             )
             if self.verbose:
                 parse_response(response)
@@ -302,9 +333,10 @@ class AGiXTSDK:
     def get_agents(
         self,
     ) -> List[Dict[str, Any]]:
+        """Get all agents. Returns list of agents with their IDs."""
         try:
             response = requests.get(
-                headers=self.headers, url=f"{self.base_uri}/api/agent"
+                headers=self.headers, url=f"{self.base_uri}/v1/agent"
             )
             if self.verbose:
                 parse_response(response)
@@ -312,10 +344,11 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
-    def get_agentconfig(self, agent_name: str) -> Dict[str, Any]:
+    def get_agentconfig(self, agent_id: str) -> Dict[str, Any]:
+        """Get agent configuration by ID."""
         try:
             response = requests.get(
-                headers=self.headers, url=f"{self.base_uri}/api/agent/{agent_name}"
+                headers=self.headers, url=f"{self.base_uri}/v1/agent/{agent_id}"
             )
             if self.verbose:
                 parse_response(response)
@@ -323,8 +356,55 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
-    def get_conversations(self, agent_name: str = "") -> List[str]:
-        url = f"{self.base_uri}/api/conversations"
+    def get_agent_id_by_name(self, agent_name: str) -> Optional[str]:
+        """Get agent ID by name. Returns None if not found."""
+        try:
+            agents = self.get_agents()
+            for agent in agents:
+                if isinstance(agent, dict) and agent.get("name") == agent_name:
+                    return agent.get("id")
+            return None
+        except Exception:
+            return None
+
+    def get_chain_id_by_name(self, chain_name: str) -> Optional[str]:
+        """Get chain ID by name. Returns None if not found."""
+        try:
+            chains = self.get_chains()
+            for chain in chains:
+                if isinstance(chain, dict) and chain.get("name") == chain_name:
+                    return chain.get("id")
+            return None
+        except Exception:
+            return None
+
+    def get_conversation_id_by_name(self, conversation_name: str) -> Optional[str]:
+        """Get conversation ID by name. Returns None if not found."""
+        try:
+            conversations = self.get_conversations_with_ids()
+            for conv in conversations:
+                if isinstance(conv, dict) and conv.get("name") == conversation_name:
+                    return conv.get("id")
+            return None
+        except Exception:
+            return None
+
+    def get_prompt_id_by_name(
+        self, prompt_name: str, category: str = "Default"
+    ) -> Optional[str]:
+        """Get prompt ID by name. Returns None if not found."""
+        try:
+            prompts = self.get_prompts(prompt_category=category)
+            for prompt in prompts:
+                if isinstance(prompt, dict) and prompt.get("name") == prompt_name:
+                    return prompt.get("id")
+            return None
+        except Exception:
+            return None
+
+    def get_conversations(self, agent_id: str = "") -> List[Dict[str, Any]]:
+        """Get all conversations. Returns list with conversation IDs."""
+        url = f"{self.base_uri}/v1/conversations"
         try:
             response = requests.get(
                 headers=self.headers,
@@ -336,8 +416,9 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
-    def get_conversations_with_ids(self) -> List[str]:
-        url = f"{self.base_uri}/api/conversations"
+    def get_conversations_with_ids(self) -> List[Dict[str, Any]]:
+        """Get all conversations with their IDs."""
+        url = f"{self.base_uri}/v1/conversations"
         try:
             response = requests.get(
                 headers=self.headers,
@@ -350,15 +431,14 @@ class AGiXTSDK:
             return self.handle_error(e)
 
     def get_conversation(
-        self, agent_name: str, conversation_name: str, limit: int = 100, page: int = 1
+        self, conversation_id: str, limit: int = 100, page: int = 1
     ) -> List[Dict[str, Any]]:
+        """Get conversation history by ID."""
         try:
             response = requests.get(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/conversation",
-                json={
-                    "conversation_name": conversation_name,
-                    "agent_name": agent_name,
+                url=f"{self.base_uri}/v1/conversation/{conversation_id}",
+                params={
                     "limit": limit,
                     "page": page,
                 },
@@ -371,74 +451,70 @@ class AGiXTSDK:
 
     def fork_conversation(
         self,
-        conversation_name: str,
+        conversation_id: str,
         message_id: str,
     ):
+        """Fork a conversation from a specific message."""
         try:
             response = requests.post(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/conversation/fork",
-                json={"conversation_name": conversation_name, "message_id": message_id},
+                url=f"{self.base_uri}/v1/conversation/fork/{conversation_id}/{message_id}",
             )
             if self.verbose:
                 parse_response(response)
-            return response.json()["message"]
+            return response.json()
         except Exception as e:
             return self.handle_error(e)
 
     def new_conversation(
         self,
-        agent_name: str,
+        agent_id: str,
         conversation_name: str,
         conversation_content: List[Dict[str, Any]] = [],
-    ) -> List[Dict[str, Any]]:
+    ) -> Dict[str, Any]:
+        """Create a new conversation. Returns conversation with ID."""
         try:
             response = requests.post(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/conversation",
+                url=f"{self.base_uri}/v1/conversation",
                 json={
                     "conversation_name": conversation_name,
-                    "agent_name": agent_name,
+                    "agent_id": agent_id,
                     "conversation_content": conversation_content,
                 },
             )
             if self.verbose:
                 parse_response(response)
-            return response.json()["conversation_history"]
+            return response.json()
         except Exception as e:
             return self.handle_error(e)
 
     def rename_conversation(
         self,
-        agent_name: str,
-        conversation_name: str,
+        conversation_id: str,
         new_name: str = "-",
     ):
+        """Rename a conversation by ID."""
         try:
             response = requests.put(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/conversation",
+                url=f"{self.base_uri}/v1/conversation/{conversation_id}",
                 json={
-                    "conversation_name": conversation_name,
                     "new_conversation_name": new_name,
-                    "agent_name": agent_name,
                 },
             )
             if self.verbose:
                 parse_response(response)
-            return response.json()["conversation_name"]
+            return response.json()
         except Exception as e:
             return self.handle_error(e)
 
-    def delete_conversation(self, agent_name: str, conversation_name: str) -> str:
+    def delete_conversation(self, conversation_id: str) -> str:
+        """Delete a conversation by ID."""
         try:
             response = requests.delete(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/conversation",
-                json={
-                    "conversation_name": conversation_name,
-                    "agent_name": agent_name,
-                },
+                url=f"{self.base_uri}/v1/conversation/{conversation_id}",
             )
             if self.verbose:
                 parse_response(response)
@@ -446,18 +522,12 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
-    def delete_conversation_message(
-        self, agent_name: str, conversation_name: str, message: str
-    ) -> str:
+    def delete_conversation_message(self, conversation_id: str, message_id: str) -> str:
+        """Delete a message from a conversation by IDs."""
         try:
             response = requests.delete(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/conversation/message",
-                json={
-                    "message": message,
-                    "agent_name": agent_name,
-                    "conversation_name": conversation_name,
-                },
+                url=f"{self.base_uri}/v1/conversation/{conversation_id}/message/{message_id}",
             )
             if self.verbose:
                 parse_response(response)
@@ -466,17 +536,15 @@ class AGiXTSDK:
             return self.handle_error(e)
 
     def update_conversation_message(
-        self, agent_name: str, conversation_name: str, message: str, new_message: str
+        self, conversation_id: str, message_id: str, new_message: str
     ) -> str:
+        """Update a message in a conversation by IDs."""
         try:
             response = requests.put(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/conversation/message",
+                url=f"{self.base_uri}/v1/conversation/{conversation_id}/message/{message_id}",
                 json={
-                    "message": message,
                     "new_message": new_message,
-                    "agent_name": agent_name,
-                    "conversation_name": conversation_name,
                 },
             )
             if self.verbose:
@@ -489,16 +557,16 @@ class AGiXTSDK:
         self,
         role: str = "user",
         message: str = "",
-        conversation_name: str = "",
+        conversation_id: str = "",
     ) -> str:
+        """Add a new message to a conversation."""
         try:
             response = requests.post(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/conversation/message",
+                url=f"{self.base_uri}/v1/conversation/{conversation_id}/message",
                 json={
                     "role": role,
                     "message": message,
-                    "conversation_name": conversation_name,
                 },
             )
             if self.verbose:
@@ -509,14 +577,15 @@ class AGiXTSDK:
 
     def prompt_agent(
         self,
-        agent_name: str,
+        agent_id: str,
         prompt_name: str,
         prompt_args: dict,
     ) -> str:
+        """Send a prompt to an agent by ID."""
         try:
             response = requests.post(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/agent/{agent_name}/prompt",
+                url=f"{self.base_uri}/v1/agent/{agent_id}/prompt",
                 json={
                     "prompt_name": prompt_name,
                     "prompt_args": prompt_args,
@@ -528,66 +597,73 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
-    def instruct(self, agent_name: str, user_input: str, conversation: str) -> str:
+    def instruct(self, agent_id: str, user_input: str, conversation_id: str) -> str:
+        """Send an instruction to an agent."""
         return self.prompt_agent(
-            agent_name=agent_name,
+            agent_id=agent_id,
             prompt_name="instruct",
             prompt_args={
                 "user_input": user_input,
                 "disable_memory": True,
-                "conversation_name": conversation,
+                "conversation_name": conversation_id,
             },
         )
 
     def chat(
         self,
-        agent_name: str,
+        agent_id: str,
         user_input: str,
-        conversation: str,
+        conversation_id: str,
         context_results: int = 4,
     ) -> str:
+        """Chat with an agent."""
         return self.prompt_agent(
-            agent_name=agent_name,
+            agent_id=agent_id,
             prompt_name="Chat",
             prompt_args={
                 "user_input": user_input,
                 "context_results": context_results,
-                "conversation_name": conversation,
+                "conversation_name": conversation_id,
                 "disable_memory": True,
             },
         )
 
-    def smartinstruct(self, agent_name: str, user_input: str, conversation: str) -> str:
+    def smartinstruct(
+        self, agent_id: str, user_input: str, conversation_id: str
+    ) -> str:
+        """Send a smart instruction to an agent using a chain."""
         return self.run_chain(
             chain_name="Smart Instruct",
             user_input=user_input,
-            agent_name=agent_name,
+            agent_id=agent_id,
             all_responses=False,
             from_step=1,
             chain_args={
-                "conversation_name": conversation,
+                "conversation_name": conversation_id,
                 "disable_memory": True,
             },
         )
 
-    def smartchat(self, agent_name: str, user_input: str, conversation: str) -> str:
+    def smartchat(self, agent_id: str, user_input: str, conversation_id: str) -> str:
+        """Smart chat with an agent using a chain."""
         return self.run_chain(
             chain_name="Smart Chat",
             user_input=user_input,
-            agent_name=agent_name,
+            agent_id=agent_id,
             all_responses=False,
             from_step=1,
             chain_args={
-                "conversation_name": conversation,
+                "conversation_name": conversation_id,
                 "disable_memory": True,
             },
         )
 
-    def get_commands(self, agent_name: str) -> Dict[str, Dict[str, bool]]:
+    def get_commands(self, agent_id: str) -> Dict[str, Dict[str, bool]]:
+        """Get available commands for an agent by ID."""
         try:
             response = requests.get(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/agent/{agent_name}/command",
+                url=f"{self.base_uri}/v1/agent/{agent_id}/command",
             )
             if self.verbose:
                 parse_response(response)
@@ -595,11 +671,12 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
-    def toggle_command(self, agent_name: str, command_name: str, enable: bool) -> str:
+    def toggle_command(self, agent_id: str, command_name: str, enable: bool) -> str:
+        """Toggle a command for an agent by ID."""
         try:
             response = requests.patch(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/agent/{agent_name}/command",
+                url=f"{self.base_uri}/v1/agent/{agent_id}/command",
                 json={"command_name": command_name, "enable": enable},
             )
             if self.verbose:
@@ -610,19 +687,20 @@ class AGiXTSDK:
 
     def execute_command(
         self,
-        agent_name: str,
+        agent_id: str,
         command_name: str,
         command_args: dict,
-        conversation_name: str = "AGiXT Terminal Command Execution",
+        conversation_id: str = "",
     ):
+        """Execute a command on an agent by ID."""
         try:
             response = requests.post(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/agent/{agent_name}/command",
+                url=f"{self.base_uri}/v1/agent/{agent_id}/command",
                 json={
                     "command_name": command_name,
                     "command_args": command_args,
-                    "conversation_name": conversation_name,
+                    "conversation_name": conversation_id,
                 },
             )
             if self.verbose:
@@ -631,68 +709,81 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
-    def get_chains(self) -> List[str]:
+    def get_chains(self) -> List[Dict[str, Any]]:
+        """Get all chains. Returns list with chain IDs."""
         try:
             response = requests.get(
-                headers=self.headers, url=f"{self.base_uri}/api/chain"
+                headers=self.headers, url=f"{self.base_uri}/v1/chains"
             )
             if self.verbose:
                 parse_response(response)
+            return response.json()  # Returns list directly
+        except Exception as e:
+            return self.handle_error(e)
+
+    def get_chain(self, chain_id: str) -> Dict[str, Any]:
+        """Get a chain by ID."""
+        try:
+            response = requests.get(
+                headers=self.headers, url=f"{self.base_uri}/v1/chain/{chain_id}"
+            )
+            if self.verbose:
+                parse_response(response)
+            data = response.json()
+            # Response is {chain_name: {chain_data}} - extract the chain data
+            if isinstance(data, dict) and len(data) == 1:
+                return list(data.values())[0]
+            return data
+        except Exception as e:
+            return self.handle_error(e)
+
+    def get_chain_responses(self, chain_id: str) -> Dict[str, Any]:
+        """Get chain responses by ID."""
+        try:
+            response = requests.get(
+                headers=self.headers,
+                url=f"{self.base_uri}/v1/chain/{chain_id}/responses",
+            )
+            if self.verbose:
+                parse_response(response)
+            return response.json()["chain"]
+        except Exception as e:
+            return self.handle_error(e)
+
+    def get_chain_args(self, chain_id: str) -> List[str]:
+        """Get chain arguments by ID."""
+        try:
+            response = requests.get(
+                headers=self.headers,
+                url=f"{self.base_uri}/v1/chain/{chain_id}/args",
+            )
+            if self.verbose:
+                parse_response(response)
+            # Response is a list directly
             return response.json()
-        except Exception as e:
-            return self.handle_error(e)
-
-    def get_chain(self, chain_name: str) -> Dict[str, Any]:
-        try:
-            response = requests.get(
-                headers=self.headers, url=f"{self.base_uri}/api/chain/{chain_name}"
-            )
-            if self.verbose:
-                parse_response(response)
-            return response.json()["chain"]
-        except Exception as e:
-            return self.handle_error(e)
-
-    def get_chain_responses(self, chain_name: str) -> Dict[str, Any]:
-        try:
-            response = requests.get(
-                headers=self.headers,
-                url=f"{self.base_uri}/api/chain/{chain_name}/responses",
-            )
-            if self.verbose:
-                parse_response(response)
-            return response.json()["chain"]
-        except Exception as e:
-            return self.handle_error(e)
-
-    def get_chain_args(self, chain_name: str) -> List[str]:
-        try:
-            response = requests.get(
-                headers=self.headers,
-                url=f"{self.base_uri}/api/chain/{chain_name}/args",
-            )
-            if self.verbose:
-                parse_response(response)
-            return response.json()["chain_args"]
         except Exception as e:
             return self.handle_error(e)
 
     def run_chain(
         self,
-        chain_name: str,
-        user_input: str,
-        agent_name: str = "",
+        chain_id: str = "",
+        chain_name: str = "",
+        user_input: str = "",
+        agent_id: str = "",
         all_responses: bool = False,
         from_step: int = 1,
         chain_args={},
     ) -> str:
+        """Run a chain by ID or name."""
         try:
+            # Use chain_id if provided, otherwise use chain_name for lookup
+            endpoint = chain_id if chain_id else chain_name
             response = requests.post(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/chain/{chain_name}/run",
+                url=f"{self.base_uri}/v1/chain/{endpoint}/run",
                 json={
                     "prompt": user_input,
-                    "agent_override": agent_name,
+                    "agent_override": agent_id,
                     "all_responses": all_responses,
                     "from_step": int(from_step),
                     "chain_args": chain_args,
@@ -706,19 +797,20 @@ class AGiXTSDK:
 
     def run_chain_step(
         self,
-        chain_name: str,
+        chain_id: str,
         step_number: int,
         user_input: str,
-        agent_name=None,
+        agent_id: str = None,
         chain_args={},
     ) -> str:
+        """Run a specific chain step by chain ID."""
         try:
             response = requests.post(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/chain/{chain_name}/run/step/{step_number}",
+                url=f"{self.base_uri}/v1/chain/{chain_id}/run/step/{step_number}",
                 json={
                     "prompt": user_input,
-                    "agent_override": agent_name,
+                    "agent_override": agent_id,
                     "chain_args": chain_args,
                 },
             )
@@ -728,24 +820,26 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
-    def add_chain(self, chain_name: str) -> str:
+    def add_chain(self, chain_name: str) -> Dict[str, Any]:
+        """Create a new chain. Returns chain info with ID."""
         try:
             response = requests.post(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/chain",
+                url=f"{self.base_uri}/v1/chain",
                 json={"chain_name": chain_name},
             )
             if self.verbose:
                 parse_response(response)
-            return response.json()["message"]
+            return response.json()
         except Exception as e:
             return self.handle_error(e)
 
     def import_chain(self, chain_name: str, steps: dict) -> str:
+        """Import a chain with steps."""
         try:
             response = requests.post(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/chain/import",
+                url=f"{self.base_uri}/v1/chain/import",
                 json={"chain_name": chain_name, "steps": steps},
             )
             if self.verbose:
@@ -754,10 +848,11 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
-    def rename_chain(self, chain_name: str, new_name: str) -> str:
+    def rename_chain(self, chain_id: str, new_name: str) -> str:
+        """Rename a chain by ID."""
         try:
             response = requests.put(
-                f"{self.base_uri}/api/chain/{chain_name}",
+                f"{self.base_uri}/v1/chain/{chain_id}",
                 json={"new_name": new_name},
                 headers=self.headers,
             )
@@ -767,10 +862,11 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
-    def delete_chain(self, chain_name: str) -> str:
+    def delete_chain(self, chain_id: str) -> str:
+        """Delete a chain by ID."""
         try:
             response = requests.delete(
-                headers=self.headers, url=f"{self.base_uri}/api/chain/{chain_name}"
+                headers=self.headers, url=f"{self.base_uri}/v1/chain/{chain_id}"
             )
             if self.verbose:
                 parse_response(response)
@@ -780,19 +876,20 @@ class AGiXTSDK:
 
     def add_step(
         self,
-        chain_name: str,
+        chain_id: str,
         step_number: int,
-        agent_name: str,
+        agent_id: str,
         prompt_type: str,
         prompt: dict,
     ) -> str:
+        """Add a step to a chain by ID."""
         try:
             response = requests.post(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/chain/{chain_name}/step",
+                url=f"{self.base_uri}/v1/chain/{chain_id}/step",
                 json={
                     "step_number": step_number,
-                    "agent_name": agent_name,
+                    "agent_id": agent_id,
                     "prompt_type": prompt_type,
                     "prompt": prompt,
                 },
@@ -805,19 +902,20 @@ class AGiXTSDK:
 
     def update_step(
         self,
-        chain_name: str,
+        chain_id: str,
         step_number: int,
-        agent_name: str,
+        agent_id: str,
         prompt_type: str,
         prompt: dict,
     ) -> str:
+        """Update a chain step by chain ID."""
         try:
             response = requests.put(
-                f"{self.base_uri}/api/chain/{chain_name}/step/{step_number}",
+                f"{self.base_uri}/v1/chain/{chain_id}/step/{step_number}",
                 headers=self.headers,
                 json={
                     "step_number": step_number,
-                    "agent_name": agent_name,
+                    "agent_id": agent_id,
                     "prompt_type": prompt_type,
                     "prompt": prompt,
                 },
@@ -830,14 +928,15 @@ class AGiXTSDK:
 
     def move_step(
         self,
-        chain_name: str,
+        chain_id: str,
         old_step_number: int,
         new_step_number: int,
     ) -> str:
+        """Move a chain step by chain ID."""
         try:
             response = requests.patch(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/chain/{chain_name}/step/move",
+                url=f"{self.base_uri}/v1/chain/{chain_id}/step/move",
                 json={
                     "old_step_number": old_step_number,
                     "new_step_number": new_step_number,
@@ -849,11 +948,12 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
-    def delete_step(self, chain_name: str, step_number: int) -> str:
+    def delete_step(self, chain_id: str, step_number: int) -> str:
+        """Delete a chain step by chain ID."""
         try:
             response = requests.delete(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/chain/{chain_name}/step/{step_number}",
+                url=f"{self.base_uri}/v1/chain/{chain_id}/step/{step_number}",
             )
             if self.verbose:
                 parse_response(response)
@@ -863,41 +963,44 @@ class AGiXTSDK:
 
     def add_prompt(
         self, prompt_name: str, prompt: str, prompt_category: str = "Default"
-    ) -> str:
+    ) -> Dict[str, Any]:
+        """Create a new prompt. Returns prompt info with ID."""
         try:
             response = requests.post(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/prompt/{prompt_category}",
+                url=f"{self.base_uri}/v1/prompt",
                 json={
                     "prompt_name": prompt_name,
                     "prompt": prompt,
+                    "prompt_category": prompt_category,
                 },
             )
             if self.verbose:
                 parse_response(response)
-            return response.json()["message"]
+            return response.json()
         except Exception as e:
             return self.handle_error(e)
 
-    def get_prompt(
-        self, prompt_name: str, prompt_category: str = "Default"
-    ) -> Dict[str, Any]:
+    def get_prompt(self, prompt_id: str) -> Dict[str, Any]:
+        """Get a prompt by ID."""
         try:
             response = requests.get(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/prompt/{prompt_category}/{prompt_name}",
+                url=f"{self.base_uri}/v1/prompt/{prompt_id}",
             )
             if self.verbose:
                 parse_response(response)
-            return response.json()["prompt"]
+            return response.json()
         except Exception as e:
             return self.handle_error(e)
 
-    def get_prompts(self, prompt_category: str = "Default") -> List[str]:
+    def get_prompts(self, prompt_category: str = "Default") -> List[Dict[str, Any]]:
+        """Get all prompts in a category."""
         try:
             response = requests.get(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/prompt/{prompt_category}",
+                url=f"{self.base_uri}/v1/prompts",
+                params={"prompt_category": prompt_category},
             )
             if self.verbose:
                 parse_response(response)
@@ -905,25 +1008,51 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
-    def get_prompt_categories(self) -> List[str]:
+    def get_all_prompts(self) -> Dict[str, List[Dict[str, Any]]]:
+        """Get all global and user prompts with full details including IDs."""
         try:
             response = requests.get(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/prompt/categories",
+                url=f"{self.base_uri}/v1/prompt/all",
             )
             if self.verbose:
                 parse_response(response)
-            return response.json()["prompt_categories"]
+            return response.json()
         except Exception as e:
             return self.handle_error(e)
 
-    def get_prompt_args(
-        self, prompt_name: str, prompt_category: str = "Default"
-    ) -> Dict[str, Any]:
+    def get_prompt_categories(self) -> List[Dict[str, Any]]:
+        """Get all prompt categories with IDs."""
         try:
             response = requests.get(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/prompt/{prompt_category}/{prompt_name}/args",
+                url=f"{self.base_uri}/v1/prompt/categories",
+            )
+            if self.verbose:
+                parse_response(response)
+            return response.json()["categories"]
+        except Exception as e:
+            return self.handle_error(e)
+
+    def get_prompts_by_category_id(self, category_id: str) -> List[Dict[str, Any]]:
+        """Get prompts by category ID."""
+        try:
+            response = requests.get(
+                headers=self.headers,
+                url=f"{self.base_uri}/v1/prompt/category/{category_id}",
+            )
+            if self.verbose:
+                parse_response(response)
+            return response.json()["prompts"]
+        except Exception as e:
+            return self.handle_error(e)
+
+    def get_prompt_args(self, prompt_id: str) -> Dict[str, Any]:
+        """Get prompt arguments by ID."""
+        try:
+            response = requests.get(
+                headers=self.headers,
+                url=f"{self.base_uri}/v1/prompt/{prompt_id}/args",
             )
             if self.verbose:
                 parse_response(response)
@@ -931,11 +1060,12 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
-    def delete_prompt(self, prompt_name: str, prompt_category: str = "Default") -> str:
+    def delete_prompt(self, prompt_id: str) -> str:
+        """Delete a prompt by ID."""
         try:
             response = requests.delete(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/prompt/{prompt_category}/{prompt_name}",
+                url=f"{self.base_uri}/v1/prompt/{prompt_id}",
             )
             if self.verbose:
                 parse_response(response)
@@ -943,17 +1073,14 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
-    def update_prompt(
-        self, prompt_name: str, prompt: str, prompt_category: str = "Default"
-    ) -> str:
+    def update_prompt(self, prompt_id: str, prompt: str) -> str:
+        """Update a prompt by ID."""
         try:
             response = requests.put(
-                f"{self.base_uri}/api/prompt/{prompt_category}/{prompt_name}",
+                f"{self.base_uri}/v1/prompt/{prompt_id}",
                 headers=self.headers,
                 json={
                     "prompt": prompt,
-                    "prompt_name": prompt_name,
-                    "prompt_category": prompt_category,
                 },
             )
             if self.verbose:
@@ -962,13 +1089,12 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
-    def rename_prompt(
-        self, prompt_name: str, new_name: str, prompt_category: str = "Default"
-    ) -> str:
+    def rename_prompt(self, prompt_id: str, new_name: str) -> str:
+        """Rename a prompt by ID."""
         try:
             response = requests.patch(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/prompt/{prompt_category}/{prompt_name}",
+                url=f"{self.base_uri}/v1/prompt/{prompt_id}",
                 json={"prompt_name": new_name},
             )
             if self.verbose:
@@ -977,11 +1103,12 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
-    def get_persona(self, agent_name: str) -> Dict[str, Any]:
+    def get_persona(self, agent_id: str) -> Dict[str, Any]:
+        """Get agent persona by ID."""
         try:
             response = requests.get(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/agent/{agent_name}/persona",
+                url=f"{self.base_uri}/v1/agent/{agent_id}/persona",
             )
             if self.verbose:
                 parse_response(response)
@@ -989,10 +1116,11 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
-    def update_persona(self, agent_name: str, persona: str) -> str:
+    def update_persona(self, agent_id: str, persona: str) -> str:
+        """Update agent persona by ID."""
         try:
             response = requests.put(
-                f"{self.base_uri}/api/agent/{agent_name}/persona",
+                f"{self.base_uri}/v1/agent/{agent_id}/persona",
                 headers=self.headers,
                 json={"persona": persona},
             )
@@ -1003,9 +1131,10 @@ class AGiXTSDK:
             return self.handle_error(e)
 
     def get_extension_settings(self) -> Dict[str, Any]:
+        """Get extension settings."""
         try:
             response = requests.get(
-                headers=self.headers, url=f"{self.base_uri}/api/extensions/settings"
+                headers=self.headers, url=f"{self.base_uri}/v1/extensions/settings"
             )
             if self.verbose:
                 parse_response(response)
@@ -1014,9 +1143,10 @@ class AGiXTSDK:
             return self.handle_error(e)
 
     def get_extensions(self):
+        """Get all available extensions."""
         try:
             response = requests.get(
-                headers=self.headers, url=f"{self.base_uri}/api/extensions"
+                headers=self.headers, url=f"{self.base_uri}/v1/extensions"
             )
             if self.verbose:
                 parse_response(response)
@@ -1024,11 +1154,12 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
-    def get_agent_extensions(self, agent_name: str = "AGiXT"):
+    def get_agent_extensions(self, agent_id: str):
+        """Get extensions for an agent by ID."""
         try:
             response = requests.get(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/agent/{agent_name}/extensions",
+                url=f"{self.base_uri}/v1/agent/{agent_id}/extensions",
             )
             if self.verbose:
                 parse_response(response)
@@ -1037,10 +1168,11 @@ class AGiXTSDK:
             return self.handle_error(e)
 
     def get_command_args(self, command_name: str) -> Dict[str, Any]:
+        """Get arguments for a command."""
         try:
             response = requests.get(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/extensions/{command_name}/args",
+                url=f"{self.base_uri}/v1/extensions/{command_name}/args",
             )
             if self.verbose:
                 parse_response(response)
@@ -1049,34 +1181,38 @@ class AGiXTSDK:
             return self.handle_error(e)
 
     def get_embedders_details(self) -> Dict[str, Any]:
+        """Get embedder details."""
         try:
-            response = requests.get(
-                headers=self.headers, url=f"{self.base_uri}/api/embedders"
-            )
-            if self.verbose:
-                parse_response(response)
-            return response.json()["embedders"]
+            providers = self.get_providers()
+            embedders = {}
+            for provider in providers:
+                if isinstance(provider, dict) and provider.get(
+                    "supports_embeddings", False
+                ):
+                    embedders[provider.get("name")] = provider
+            return embedders
         except Exception as e:
             return self.handle_error(e)
 
     def positive_feedback(
         self,
-        agent_name,
+        agent_id: str,
         message: str,
         user_input: str,
         feedback: str,
-        conversation_name: str = "",
+        conversation_id: str = "",
     ) -> str:
+        """Submit positive feedback for an agent response."""
         try:
             response = requests.post(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/agent/{agent_name}/feedback",
+                url=f"{self.base_uri}/v1/agent/{agent_id}/feedback",
                 json={
                     "user_input": user_input,
                     "message": message,
                     "feedback": feedback,
                     "positive": True,
-                    "conversation_name": conversation_name,
+                    "conversation_name": conversation_id,
                 },
             )
             if self.verbose:
@@ -1087,22 +1223,23 @@ class AGiXTSDK:
 
     def negative_feedback(
         self,
-        agent_name,
+        agent_id: str,
         message: str,
         user_input: str,
         feedback: str,
-        conversation_name: str = "",
+        conversation_id: str = "",
     ) -> str:
+        """Submit negative feedback for an agent response."""
         try:
             response = requests.post(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/agent/{agent_name}/feedback",
+                url=f"{self.base_uri}/v1/agent/{agent_id}/feedback",
                 json={
                     "user_input": user_input,
                     "message": message,
                     "feedback": feedback,
                     "positive": False,
-                    "conversation_name": conversation_name,
+                    "conversation_name": conversation_id,
                 },
             )
             if self.verbose:
@@ -1112,12 +1249,13 @@ class AGiXTSDK:
             return self.handle_error(e)
 
     def learn_text(
-        self, agent_name, user_input: str, text: str, collection_number: str = "0"
+        self, agent_id: str, user_input: str, text: str, collection_number: str = "0"
     ) -> str:
+        """Teach agent text content by ID."""
         try:
             response = requests.post(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/agent/{agent_name}/learn/text",
+                url=f"{self.base_uri}/v1/agent/{agent_id}/learn/text",
                 json={
                     "user_input": user_input,
                     "text": text,
@@ -1130,11 +1268,12 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
-    def learn_url(self, agent_name: str, url: str, collection_number: str = "0") -> str:
+    def learn_url(self, agent_id: str, url: str, collection_number: str = "0") -> str:
+        """Teach agent content from a URL by ID."""
         try:
             response = requests.post(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/agent/{agent_name}/learn/url",
+                url=f"{self.base_uri}/v1/agent/{agent_id}/learn/url",
                 json={
                     "url": url,
                     "collection_number": collection_number,
@@ -1148,15 +1287,16 @@ class AGiXTSDK:
 
     def learn_file(
         self,
-        agent_name: str,
+        agent_id: str,
         file_name: str,
         file_content: str,
         collection_number: str = "0",
     ) -> str:
+        """Teach agent content from a file by ID."""
         try:
             response = requests.post(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/agent/{agent_name}/learn/file",
+                url=f"{self.base_uri}/v1/agent/{agent_id}/learn/file",
                 json={
                     "file_name": file_name,
                     "file_content": file_content,
@@ -1171,7 +1311,7 @@ class AGiXTSDK:
 
     def learn_github_repo(
         self,
-        agent_name: str,
+        agent_id: str,
         github_repo: str,
         github_user: str = None,
         github_token: str = None,
@@ -1179,10 +1319,11 @@ class AGiXTSDK:
         use_agent_settings: bool = False,
         collection_number: str = "0",
     ):
+        """Teach agent content from a GitHub repo by ID."""
         try:
             response = requests.post(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/agent/{agent_name}/learn/github",
+                url=f"{self.base_uri}/v1/agent/{agent_id}/learn/github",
                 json={
                     "github_repo": github_repo,
                     "github_user": github_user,
@@ -1200,16 +1341,17 @@ class AGiXTSDK:
 
     def learn_arxiv(
         self,
-        agent_name: str,
+        agent_id: str,
         query: str = None,
         arxiv_ids: str = None,
         max_results: int = 5,
         collection_number: str = "0",
     ):
+        """Teach agent content from arXiv by ID."""
         try:
             response = requests.post(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/agent/{agent_name}/learn/arxiv",
+                url=f"{self.base_uri}/v1/agent/{agent_id}/learn/arxiv",
                 json={
                     "query": query,
                     "arxiv_ids": arxiv_ids,
@@ -1225,17 +1367,18 @@ class AGiXTSDK:
 
     def agent_reader(
         self,
-        agent_name: str,
+        agent_id: str,
         reader_name: str,
         data: dict,
         collection_number: str = "0",
     ):
+        """Use agent reader by ID."""
         if "collection_number" not in data:
             data["collection_number"] = collection_number
         try:
             response = requests.post(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/agent/{agent_name}/reader/{reader_name}",
+                url=f"{self.base_uri}/v1/agent/{agent_id}/reader/{reader_name}",
                 json=data,
             )
             if self.verbose:
@@ -1244,14 +1387,15 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
-    def wipe_agent_memories(self, agent_name: str, collection_number: str = "0") -> str:
+    def wipe_agent_memories(self, agent_id: str, collection_number: str = "0") -> str:
+        """Wipe agent memories by ID."""
         try:
             response = requests.delete(
                 headers=self.headers,
                 url=(
-                    f"{self.base_uri}/api/agent/{agent_name}/memory"
-                    if collection_number == 0
-                    else f"{self.base_uri}/api/agent/{agent_name}/memory/{collection_number}"
+                    f"{self.base_uri}/v1/agent/{agent_id}/memory"
+                    if collection_number == "0"
+                    else f"{self.base_uri}/v1/agent/{agent_id}/memory/{collection_number}"
                 ),
             )
             if self.verbose:
@@ -1262,14 +1406,15 @@ class AGiXTSDK:
 
     def delete_agent_memory(
         self,
-        agent_name: str,
+        agent_id: str,
         memory_id: str,
         collection_number: str = "0",
     ) -> str:
+        """Delete a specific agent memory by ID."""
         try:
             response = requests.delete(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/agent/{agent_name}/memory/{collection_number}/{memory_id}",
+                url=f"{self.base_uri}/v1/agent/{agent_id}/memory/{collection_number}/{memory_id}",
             )
             if self.verbose:
                 parse_response(response)
@@ -1279,16 +1424,17 @@ class AGiXTSDK:
 
     def get_agent_memories(
         self,
-        agent_name: str,
+        agent_id: str,
         user_input: str,
         limit: int = 5,
         min_relevance_score: float = 0.0,
         collection_number: str = "0",
     ) -> List[Dict[str, Any]]:
+        """Query agent memories by ID."""
         try:
             response = requests.post(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/agent/{agent_name}/memory/{collection_number}/query",
+                url=f"{self.base_uri}/v1/agent/{agent_id}/memory/{collection_number}/query",
                 json={
                     "user_input": user_input,
                     "limit": limit,
@@ -1301,11 +1447,12 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
-    def export_agent_memories(self, agent_name: str) -> List[Dict[str, Any]]:
+    def export_agent_memories(self, agent_id: str) -> List[Dict[str, Any]]:
+        """Export agent memories by ID."""
         try:
             response = requests.get(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/agent/{agent_name}/memory/export",
+                url=f"{self.base_uri}/v1/agent/{agent_id}/memory/export",
             )
             if self.verbose:
                 parse_response(response)
@@ -1314,12 +1461,13 @@ class AGiXTSDK:
             return self.handle_error(e)
 
     def import_agent_memories(
-        self, agent_name: str, memories: List[Dict[str, Any]]
+        self, agent_id: str, memories: List[Dict[str, Any]]
     ) -> str:
+        """Import memories to an agent by ID."""
         try:
             response = requests.post(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/agent/{agent_name}/memory/import",
+                url=f"{self.base_uri}/v1/agent/{agent_id}/memory/import",
                 json={"memories": memories},
             )
             if self.verbose:
@@ -1328,11 +1476,12 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
-    def create_dataset(self, agent_name: str, dataset_name: str, batch_size: int = 4):
+    def create_dataset(self, agent_id: str, dataset_name: str, batch_size: int = 4):
+        """Create a dataset from agent memories by ID."""
         try:
             response = requests.post(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/agent/{agent_name}/memory/dataset",
+                url=f"{self.base_uri}/v1/agent/{agent_id}/memory/dataset",
                 json={"dataset_name": dataset_name, "batch_size": batch_size},
             )
             if self.verbose:
@@ -1342,12 +1491,13 @@ class AGiXTSDK:
             return self.handle_error(e)
 
     def get_browsed_links(
-        self, agent_name: str, collection_number: str = "0"
+        self, agent_id: str, collection_number: str = "0"
     ) -> List[str]:
+        """Get browsed links for an agent by ID."""
         try:
             response = requests.get(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/agent/{agent_name}/browsed_links/{collection_number}",
+                url=f"{self.base_uri}/v1/agent/{agent_id}/browsed_links/{collection_number}",
             )
             if self.verbose:
                 parse_response(response)
@@ -1356,12 +1506,13 @@ class AGiXTSDK:
             return self.handle_error(e)
 
     def delete_browsed_link(
-        self, agent_name: str, link: str, collection_number: str = "0"
+        self, agent_id: str, link: str, collection_number: str = "0"
     ) -> str:
+        """Delete a browsed link for an agent by ID."""
         try:
             response = requests.delete(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/agent/{agent_name}/browsed_links",
+                url=f"{self.base_uri}/v1/agent/{agent_id}/browsed_links",
                 json={"link": link, "collection_number": collection_number},
             )
             if self.verbose:
@@ -1370,11 +1521,12 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
-    def get_memories_external_sources(self, agent_name: str, collection_number: str):
+    def get_memories_external_sources(self, agent_id: str, collection_number: str):
+        """Get external memory sources for an agent by ID."""
         try:
             response = requests.get(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/agent/{agent_name}/memory/external_sources/{collection_number}",
+                url=f"{self.base_uri}/v1/agent/{agent_id}/memory/external_sources/{collection_number}",
             )
             if self.verbose:
                 parse_response(response)
@@ -1383,12 +1535,13 @@ class AGiXTSDK:
             return self.handle_error(e)
 
     def delete_memory_external_source(
-        self, agent_name: str, source: str, collection_number: str
+        self, agent_id: str, source: str, collection_number: str
     ) -> str:
+        """Delete an external memory source for an agent by ID."""
         try:
             response = requests.delete(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/agent/{agent_name}/memories/external_source",
+                url=f"{self.base_uri}/v1/agent/{agent_id}/memories/external_source",
                 json={
                     "external_source": source,
                     "collection_number": collection_number,
@@ -1402,17 +1555,18 @@ class AGiXTSDK:
 
     def train(
         self,
-        agent_name: str = "AGiXT",
+        agent_id: str,
         dataset_name: str = "dataset",
         model: str = "unsloth/mistral-7b-v0.2",
         max_seq_length: int = 16384,
         huggingface_output_path: str = "JoshXT/finetuned-mistral-7b-v0.2",
         private_repo: bool = True,
     ):
+        """Train/finetune a model using agent memories by ID."""
         try:
             response = requests.post(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/agent/{agent_name}/memory/dataset/{dataset_name}/finetune",
+                url=f"{self.base_uri}/v1/agent/{agent_id}/memory/dataset/{dataset_name}/finetune",
                 json={
                     "model": model,
                     "max_seq_length": max_seq_length,
@@ -1426,11 +1580,12 @@ class AGiXTSDK:
         except Exception as e:
             return self.handle_error(e)
 
-    def text_to_speech(self, agent_name: str, text: str):
+    def text_to_speech(self, agent_id: str, text: str):
+        """Convert text to speech using agent by ID."""
         try:
             response = requests.post(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/agent/{agent_name}/text_to_speech",
+                url=f"{self.base_uri}/v1/agent/{agent_id}/text_to_speech",
                 json={"text": text},
             )
             if self.verbose:
@@ -1446,11 +1601,17 @@ class AGiXTSDK:
         func: Callable = None,
         async_func: Callable = None,
     ):
-        agent_name = prompt.model  # prompt.model is the agent name
-        conversation_name = (
+        """OpenAI-compatible chat completions wrapper.
+
+        Note: This method uses agent_id (passed via prompt.model) and
+        conversation_id (passed via prompt.user) for compatibility with
+        the OpenAI API format.
+        """
+        agent_id = prompt.model  # prompt.model is the agent ID
+        conversation_id = (
             prompt.user if prompt.user else "-"
-        )  # prompt.user is the conversation name
-        agent_config = self.get_agentconfig(agent_name=agent_name)
+        )  # prompt.user is the conversation ID
+        agent_config = self.get_agentconfig(agent_id=agent_id)
         agent_settings = agent_config["settings"] if "settings" in agent_config else {}
         images = []
         tts = False
@@ -1521,9 +1682,9 @@ class AGiXTSDK:
                                 f.write(audio_data)
                         wav_file = f"./WORKSPACE/{uuid.uuid4().hex}.wav"
                         try:
-                            AudioSegment.from_file(audio_url).set_frame_rate(16000).export(
-                            wav_file, format="wav"
-                        )
+                            AudioSegment.from_file(audio_url).set_frame_rate(
+                                16000
+                            ).export(wav_file, format="wav")
                         except:
                             pass
                         # Switch this to use the endpoint
@@ -1534,15 +1695,15 @@ class AGiXTSDK:
                         )
                         openai.base_uri = f"{self.base_uri}/v1/"
                         self.new_conversation_message(
-                            role=agent_name,
+                            role=agent_id,
                             message=f"[ACTIVITY] Transcribing audio to text.",
-                            conversation_name=conversation_name,
+                            conversation_id=conversation_id,
                         )
                         try:
                             with open(wav_file, "rb") as audio_file:
                                 transcription = openai.audio.transcriptions.create(
-                                    model=agent_name, file=audio_file
-                            )
+                                    model=agent_id, file=audio_file
+                                )
                         except:
                             pass
                         new_prompt += transcription.text
@@ -1558,12 +1719,12 @@ class AGiXTSDK:
                             collection_number = "0"
                         if video_url.startswith("https://www.youtube.com/watch?v="):
                             self.new_conversation_message(
-                                role=agent_name,
+                                role=agent_id,
                                 message=f"[ACTIVITY] Learning video from YouTube.",
-                                conversation_name=conversation_name,
+                                conversation_id=conversation_id,
                             )
                             self.learn_url(
-                                agent_name=agent_name,
+                                agent_id=agent_id,
                                 url=video_url,
                                 collection_number=collection_number,
                             )
@@ -1589,23 +1750,23 @@ class AGiXTSDK:
                         if file_url.startswith("http"):
                             if file_url.startswith("https://www.youtube.com/watch?v="):
                                 self.new_conversation_message(
-                                    role=agent_name,
+                                    role=agent_id,
                                     message=f"[ACTIVITY] Learning video from YouTube.",
-                                    conversation_name=conversation_name,
+                                    conversation_id=conversation_id,
                                 )
                                 self.learn_url(
-                                    agent_name=agent_name,
+                                    agent_id=agent_id,
                                     url=file_url,
                                     collection_number=collection_number,
                                 )
                             elif file_url.startswith("https://github.com"):
                                 self.new_conversation_message(
-                                    role=agent_name,
+                                    role=agent_id,
                                     message=f"[ACTIVITY] Learning from GitHub.",
-                                    conversation_name=conversation_name,
+                                    conversation_id=conversation_id,
                                 )
                                 self.learn_github_repo(
-                                    agent_name=agent_name,
+                                    agent_id=agent_id,
                                     github_repo=file_url,
                                     github_user=(
                                         agent_settings["GITHUB_USER"]
@@ -1626,12 +1787,12 @@ class AGiXTSDK:
                                 )
                             else:
                                 self.new_conversation_message(
-                                    role=agent_name,
+                                    role=agent_id,
                                     message=f"[ACTIVITY] Browsing {file_url} .",
-                                    conversation_name=conversation_name,
+                                    conversation_id=conversation_id,
                                 )
                                 self.learn_url(
-                                    agent_name=agent_name,
+                                    agent_id=agent_id,
                                     url=file_url,
                                     collection_number=collection_number,
                                 )
@@ -1646,12 +1807,12 @@ class AGiXTSDK:
                             # file name should be a safe timestamp
                             file_name = f"Uploaded File {datetime.now().strftime('%Y%m%d%H%M%S')}.{file_type}"
                             self.new_conversation_message(
-                                role=agent_name,
+                                role=agent_id,
                                 message=f"[ACTIVITY] Learning from uploaded file.",
-                                conversation_name=conversation_name,
+                                conversation_id=conversation_id,
                             )
                             self.learn_file(
-                                agent_name=agent_name,
+                                agent_id=agent_id,
                                 file_name=f"Uploaded File {uuid.uuid4().hex}.{file_type}",
                                 file_content=file_data,
                                 collection_number=collection_number,
@@ -1659,37 +1820,37 @@ class AGiXTSDK:
         self.new_conversation_message(
             role="user",
             message=new_prompt,
-            conversation_name=conversation_name,
+            conversation_id=conversation_id,
         )
         if async_func:
             response = await async_func(new_prompt)
         else:
             response = func(new_prompt)
         self.new_conversation_message(
-            role=agent_name,
+            role=agent_id,
             message=response,
-            conversation_name=conversation_name,
+            conversation_id=conversation_id,
         )
         if tts:
             self.new_conversation_message(
-                role=agent_name,
+                role=agent_id,
                 message=f"[ACTIVITY] Generating audio response.",
-                conversation_name=conversation_name,
+                conversation_id=conversation_id,
             )
-            tts_response = self.text_to_speech(agent_name=agent_name, text=response)
+            tts_response = self.text_to_speech(agent_id=agent_id, text=response)
             self.new_conversation_message(
-                role=agent_name,
+                role=agent_id,
                 message=f'<audio controls><source src="{tts_response}" type="audio/wav"></audio>',
-                conversation_name=conversation_name,
+                conversation_id=conversation_id,
             )
         prompt_tokens = get_tokens(str(new_prompt))
         completion_tokens = get_tokens(str(response))
         total_tokens = int(prompt_tokens) + int(completion_tokens)
         res_model = {
-            "id": conversation_name,
+            "id": conversation_id,
             "object": "chat.completion",
             "created": int(time.time()),
-            "model": agent_name,
+            "model": agent_id,
             "choices": [
                 {
                     "index": 0,
@@ -1711,24 +1872,25 @@ class AGiXTSDK:
 
     def plan_task(
         self,
-        agent_name: str,
+        agent_id: str,
         user_input: str,
         websearch: bool = False,
         websearch_depth: int = 3,
-        conversation_name: str = "",
+        conversation_id: str = "",
         log_user_input: bool = True,
         log_output: bool = True,
         enable_new_command: bool = True,
     ):
+        """Plan a task using an agent by ID."""
         try:
             response = requests.post(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/agent/{agent_name}/plan/task",
+                url=f"{self.base_uri}/v1/agent/{agent_id}/plan/task",
                 json={
                     "user_input": user_input,
                     "websearch": websearch,
                     "websearch_depth": websearch_depth,
-                    "conversation_name": conversation_name,
+                    "conversation_name": conversation_id,
                     "log_user_input": log_user_input,
                     "log_output": log_output,
                     "enable_new_command": enable_new_command,
@@ -1806,7 +1968,7 @@ class AGiXTSDK:
         self,
         input_string: str,
         model: Type[BaseModel],
-        agent_name: str = "gpt4free",
+        agent_id: str = "gpt4free",
         max_failures: int = 3,
         response_type: str = None,
         **kwargs,
@@ -1817,7 +1979,7 @@ class AGiXTSDK:
         Args:
         input_string (str): The string to convert to a model.
         model (Type[BaseModel]): The Pydantic model to convert the string to.
-        agent_name (str): The name of the AGiXT agent to use for the conversion.
+        agent_id (str): The ID of the AGiXT agent to use for the conversion.
         max_failures (int): The maximum number of times to retry the conversion if it fails.
         response_type (str): The type of response to return. Either 'json' or None. None will return the model.
         **kwargs: Additional arguments to pass to the AGiXT agent as prompt arguments.
@@ -1829,7 +1991,7 @@ class AGiXTSDK:
         if "schema" in kwargs:
             del kwargs["schema"]
         response = self.prompt_agent(
-            agent_name=agent_name,
+            agent_id=agent_id,
             prompt_name="Convert to Model",
             prompt_args={
                 "schema": schema,
@@ -1867,7 +2029,7 @@ class AGiXTSDK:
             return self.convert_to_model(
                 input_string=input_string,
                 model=model,
-                agent_name=agent_name,
+                agent_id=agent_id,
                 max_failures=max_failures,
                 **kwargs,
             )
@@ -1876,12 +2038,13 @@ class AGiXTSDK:
         self,
         data: List[dict],
         model: Type[BaseModel],
-        agent_name: str = "gpt4free",
+        agent_id: str = "gpt4free",
     ):
+        """Convert a list of dicts to models using an agent by ID."""
         converted_data = self.convert_to_model(
             input_string=json.dumps(data[0], indent=4),
             model=model,
-            agent_name=agent_name,
+            agent_id=agent_id,
         )
         mapped_list = []
         for info in data:
@@ -1895,7 +2058,7 @@ class AGiXTSDK:
 
     def create_extension(
         self,
-        agent_name: str,
+        agent_id: str,
         extension_name: str,
         openapi_json_url: str,
     ):
@@ -1903,6 +2066,7 @@ class AGiXTSDK:
         Create an AGiXT extension for an OpenAPI specification from a JSON URL.
 
         Parameters:
+        - agent_id (str): The ID of the agent to use for extension creation.
         - extension_name (str): The name of the extension to create.
         - openapi_json_url (str): The URL of the OpenAPI specification in JSON format.
         """
@@ -1910,17 +2074,17 @@ class AGiXTSDK:
             f"Creating AGiXT extension for {extension_name}, this will take some time!"
         )
         chain_name = self.execute_command(
-            agent_name=agent_name,
+            agent_id=agent_id,
             command_name="Generate Extension from OpenAPI",
             command_args={
                 "openapi_json_url": openapi_json_url,
                 "extension_name": extension_name,
             },
-            conversation_name=f"{extension_name} Extension Generation",
+            conversation_id=f"{extension_name} Extension Generation",
         )
         extension_download = self.run_chain(
             chain_name=chain_name,
-            agent_name=agent_name,
+            agent_id=agent_id,
             user_input=f"Create an AGiXT extension for {extension_name}.",
         )
         file_name = extension_download.split("/")[-1]
@@ -1939,19 +2103,20 @@ class AGiXTSDK:
 
     def get_dpo_response(
         self,
-        agent_name: str,
+        agent_id: str,
         user_input: str,
         injected_memories: int = 10,
-        conversation_name: str = "",
+        conversation_id: str = "",
     ) -> Dict[str, Any]:
+        """Get DPO response from agent by ID."""
         try:
             response = requests.post(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/agent/{agent_name}/dpo",
+                url=f"{self.base_uri}/v1/agent/{agent_id}/dpo",
                 json={
                     "user_input": user_input,
                     "injected_memories": injected_memories,
-                    "conversation_name": conversation_name,
+                    "conversation_name": conversation_id,
                 },
             )
             if self.verbose:
@@ -2132,17 +2297,17 @@ class AGiXTSDK:
 
     def update_conversation_message_by_id(
         self,
+        conversation_id: str,
         message_id: str,
         new_message: str,
-        conversation_name: str,
     ) -> Dict[str, Any]:
+        """Update a conversation message by conversation and message IDs."""
         try:
             response = requests.put(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/conversation/message/{message_id}",
+                url=f"{self.base_uri}/v1/conversation/{conversation_id}/message/{message_id}",
                 json={
                     "new_message": new_message,
-                    "conversation_name": conversation_name,
                 },
             )
             if self.verbose:
@@ -2153,14 +2318,14 @@ class AGiXTSDK:
 
     def delete_conversation_message_by_id(
         self,
+        conversation_id: str,
         message_id: str,
-        conversation_name: str,
     ) -> Dict[str, Any]:
+        """Delete a conversation message by conversation and message IDs."""
         try:
             response = requests.delete(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/conversation/message/{message_id}",
-                json={"conversation_name": conversation_name},
+                url=f"{self.base_uri}/v1/conversation/{conversation_id}/message/{message_id}",
             )
             if self.verbose:
                 parse_response(response)
@@ -2170,13 +2335,14 @@ class AGiXTSDK:
 
     def get_unique_external_sources(
         self,
-        agent_name: str,
+        agent_id: str,
         collection_number: str = "0",
     ) -> List[str]:
+        """Get unique external memory sources for an agent by ID."""
         try:
             response = requests.get(
                 headers=self.headers,
-                url=f"{self.base_uri}/api/agent/{agent_name}/memory/external_sources/{collection_number}",
+                url=f"{self.base_uri}/v1/agent/{agent_id}/memory/external_sources/{collection_number}",
             )
             if self.verbose:
                 parse_response(response)
