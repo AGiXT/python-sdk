@@ -156,7 +156,11 @@ class AGiXTSDK:
             )
             if self.verbose:
                 parse_response(response)
-            return response.json()["providers"]
+            data = response.json()
+            # Handle both list (v1) and dict (legacy) responses
+            if isinstance(data, list):
+                return data
+            return data.get("providers", data)
         except Exception as e:
             return self.handle_error(e)
 
@@ -412,7 +416,11 @@ class AGiXTSDK:
             )
             if self.verbose:
                 parse_response(response)
-            return response.json()["conversations"]
+            data = response.json()
+            # Handle both list (v1) and dict (legacy) responses
+            if isinstance(data, list):
+                return data
+            return data.get("conversations", data)
         except Exception as e:
             return self.handle_error(e)
 
@@ -426,7 +434,11 @@ class AGiXTSDK:
             )
             if self.verbose:
                 parse_response(response)
-            return response.json()["conversations_with_ids"]
+            data = response.json()
+            # Handle both list (v1) and dict (legacy) responses
+            if isinstance(data, list):
+                return data
+            return data.get("conversations_with_ids", data.get("conversations", data))
         except Exception as e:
             return self.handle_error(e)
 
@@ -1150,7 +1162,11 @@ class AGiXTSDK:
             )
             if self.verbose:
                 parse_response(response)
-            return response.json()["extensions"]
+            data = response.json()
+            # Handle both list (v1) and dict (legacy) responses
+            if isinstance(data, list):
+                return data
+            return data.get("extensions", data)
         except Exception as e:
             return self.handle_error(e)
 
