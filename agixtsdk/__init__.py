@@ -89,9 +89,56 @@ class AGiXTSDK:
         print(f"Error: {error}")
         raise Exception(f"Unable to retrieve data. {error}")
 
-    def login(self, email, otp):
+    def login(self, username: str, password: str, mfa_token: str = None):
+        """
+        Login with username/password authentication.
+
+        Args:
+            username: Username or email address
+            password: User's password
+            mfa_token: Optional TOTP code if MFA is enabled
+
+        Returns:
+            JWT token on success, or response dict on failure
+        """
+        payload = {
+            "username": username,
+            "password": password,
+        }
+        if mfa_token:
+            payload["mfa_token"] = mfa_token
+
         response = requests.post(
             f"{self.base_uri}/v1/login",
+            json=payload,
+        )
+        if self.verbose:
+            parse_response(response)
+
+        result = response.json()
+        if response.status_code == 200:
+            token = result.get("token")
+            if token:
+                self.headers = {"Authorization": token}
+                if self.verbose:
+                    print(f"Logged in successfully")
+                return token
+        return result
+
+    def login_magic_link(self, email: str, otp: str):
+        """
+        Legacy login with magic link (email + OTP token).
+        Maintained for backward compatibility.
+
+        Args:
+            email: User's email address
+            otp: TOTP code from authenticator app
+
+        Returns:
+            JWT token on success, or response dict on failure
+        """
+        response = requests.post(
+            f"{self.base_uri}/v1/login/magic-link",
             json={"email": email, "token": otp},
         )
         if self.verbose:
@@ -105,26 +152,171 @@ class AGiXTSDK:
                 if self.verbose:
                     print(f"Log in at {detail}")
                 return token
+        return response
 
-    def register_user(self, email, first_name, last_name):
-        login_response = requests.post(
+    def register_user(
+        self,
+        email: str,
+        password: str,
+        confirm_password: str,
+        first_name: str = "",
+        last_name: str = "",
+        username: str = None,
+        organization_name: str = "",
+    ):
+        """
+        Register a new user with username/password authentication.
+
+        Args:
+            email: User's email address
+            password: User's password
+            confirm_password: Password confirmation
+            first_name: User's first name (optional)
+            last_name: User's last name (optional)
+            username: Desired username (optional, auto-generated from email if not provided)
+            organization_name: Company/organization name (optional)
+
+        Returns:
+            Response dict with user_id, username, token on success
+        """
+        payload = {
+            "email": email,
+            "password": password,
+            "confirm_password": confirm_password,
+            "first_name": first_name,
+            "last_name": last_name,
+        }
+        if username:
+            payload["username"] = username
+        if organization_name:
+            payload["organization_name"] = organization_name
+
+        response = requests.post(
             f"{self.base_uri}/v1/user",
+            json=payload,
+        )
+        if self.verbose:
+            parse_response(response)
+
+        result = response.json()
+        if response.status_code == 200:
+            # Automatically set the token for subsequent requests
+            token = result.get("token")
+            if token:
+                self.headers = {"Authorization": token}
+                if self.verbose:
+                    print(f"Registered and logged in as {result.get('username')}")
+        return result
+
+    def get_mfa_setup(self):
+        """
+        Get MFA setup information including QR code URI.
+
+        Returns:
+            Dict with provisioning_uri, secret, and mfa_enabled status
+        """
+        response = requests.get(
+            f"{self.base_uri}/v1/user/mfa/setup",
+            headers=self.headers,
+        )
+        if self.verbose:
+            parse_response(response)
+        return response.json()
+
+    def enable_mfa(self, mfa_token: str):
+        """
+        Enable MFA for the current user.
+
+        Args:
+            mfa_token: TOTP code from authenticator app to verify setup
+
+        Returns:
+            Response dict with success message
+        """
+        response = requests.post(
+            f"{self.base_uri}/v1/user/mfa/enable",
+            headers=self.headers,
+            json={"mfa_token": mfa_token},
+        )
+        if self.verbose:
+            parse_response(response)
+        return response.json()
+
+    def disable_mfa(self, password: str = None, mfa_token: str = None):
+        """
+        Disable MFA for the current user.
+
+        Args:
+            password: User's password (optional)
+            mfa_token: Current TOTP code (optional)
+
+        Returns:
+            Response dict with success message
+        """
+        payload = {}
+        if password:
+            payload["password"] = password
+        if mfa_token:
+            payload["mfa_token"] = mfa_token
+
+        response = requests.post(
+            f"{self.base_uri}/v1/user/mfa/disable",
+            headers=self.headers,
+            json=payload,
+        )
+        if self.verbose:
+            parse_response(response)
+        return response.json()
+
+    def change_password(
+        self, current_password: str, new_password: str, confirm_password: str
+    ):
+        """
+        Change the current user's password.
+
+        Args:
+            current_password: Current password
+            new_password: New password
+            confirm_password: New password confirmation
+
+        Returns:
+            Response dict with success message
+        """
+        response = requests.post(
+            f"{self.base_uri}/v1/user/password/change",
+            headers=self.headers,
             json={
-                "email": email,
-                "first_name": first_name,
-                "last_name": last_name,
+                "current_password": current_password,
+                "new_password": new_password,
+                "confirm_password": confirm_password,
             },
         )
         if self.verbose:
-            parse_response(login_response)
-        response = login_response.json()
-        if "otp_uri" in response:
-            mfa_token = str(response["otp_uri"]).split("secret=")[1].split("&")[0]
-            totp = pyotp.TOTP(mfa_token)
-            self.login(email=email, otp=totp.now())
-            return response["otp_uri"]
-        else:
-            return response
+            parse_response(response)
+        return response.json()
+
+    def set_password(self, new_password: str, confirm_password: str):
+        """
+        Set a password for users who don't have one (migrating from magic link).
+
+        Args:
+            new_password: New password
+            confirm_password: New password confirmation
+
+        Returns:
+            Response dict with success message and username
+        """
+        response = requests.post(
+            f"{self.base_uri}/v1/user/password/set",
+            headers=self.headers,
+            json={
+                "new_password": new_password,
+                "confirm_password": confirm_password,
+            },
+        )
+        if self.verbose:
+            parse_response(response)
+        return response.json()
 
     def user_exists(self, email):
         response = requests.get(f"{self.base_uri}/v1/user/exists?email={email}")
