@@ -154,6 +154,27 @@ class AGiXTSDK:
                 return token
         return response
 
+    def request_login_link(self, email: str):
+        """
+        Request a login link to be sent to the user's email.
+
+        This is useful for users who don't have a password set (MFA-only users)
+        or as a "forgot password" alternative for passwordless login.
+
+        Args:
+            email: User's email address
+
+        Returns:
+            Response dict with status message
+        """
+        response = requests.post(
+            f"{self.base_uri}/v1/login/request-link",
+            json={"email": email},
+        )
+        if self.verbose:
+            parse_response(response)
+        return response.json()
+
     def register_user(
         self,
         email: str,
