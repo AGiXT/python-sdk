@@ -6,8 +6,10 @@ WC_COMPUTER_RUNTIME_BUNDLE=<absolute bundle>, and WC_COMPUTER_MANIFEST_SHA256.
 Default discovery imports neither WorkConductor nor the SDK and touches no API.
 No build, live scope, installed SDK modification, or automatic failure cleanup.
 The inherited fixture owns all fake users, Postgres, API, home, and host resources.
-Bounds: 600 seconds overall, two forks, 90-second observations, 5-second HTTP,
-one 256-byte binary, and a private proof of at most 32 KiB. Not a quota matrix.
+Bounds per case: 600 seconds overall, at most two forks, 90-second observations,
+5-second HTTP/Git, synthetic repositories, and a private proof of at most 32 KiB.
+The separate selected case copies one populated checkout and omits one sibling.
+Not a quota matrix. No Git remotes, credentials, clones, or network are needed.
 """
 
 from contextlib import contextmanager
@@ -17,10 +19,12 @@ import json
 import os
 from pathlib import Path
 import re
+import subprocess
 import sys
 import time
 import unittest
 import uuid
+from urllib.parse import urlencode
 
 
 SDK_ROOT = Path(__file__).resolve().parents[1]
@@ -28,6 +32,13 @@ OPT_IN = "WC_SDK_INSTALLED_TEST"
 BINARY = bytes(range(256))
 FILENAME = "sdk-owned-binary.dat"
 CONTENT = "Synthetic owned SDK fork boundary"
+REPOSITORY_FILES = {
+    "tracked.txt": b"owned dirty repository bytes\n",
+    "untracked.bin": BINARY,
+}
+SIBLING_PATH = "sdk-unselected-sibling"
+SIBLING_FILE = "sdk-unselected-only.txt"
+SIBLING_BYTES = b"owned deliberately unselected sibling\n"
 
 
 def valid_id(value):
@@ -106,7 +117,9 @@ def history(f, conversation):
     )
 
 
-def complete_identity(value, request, source, agent, company):
+def complete_identity(
+    value, request, source, agent, company, *, repositories=0, files=1, size=len(BINARY)
+):
     assert isinstance(value, dict), "Missing SDK receipt"
     transfer = value["transfer"]
     assert transfer["state"] == "completed", "Fork did not complete within its bound"
@@ -117,9 +130,9 @@ def complete_identity(value, request, source, agent, company):
     target = valid_id(value["id"])
     assert target == transfer["conversation_id"] and target != source
     assert isinstance(value["name"], str) and 0 < len(value["name"]) <= 1024
-    assert transfer["summary"]["files"] == 1
-    assert transfer["summary"]["bytes"] == len(BINARY)
-    assert transfer["summary"]["repositories"] == 0
+    assert transfer["summary"]["files"] == files
+    assert transfer["summary"]["bytes"] == size
+    assert transfer["summary"]["repositories"] == repositories
     return target
 
 
@@ -178,7 +191,7 @@ def verify_copy(f, target, source, message, expected_history):
     return project
 
 
-def exercise(f, sdk_module):
+def prepare_source(f):
     source = valid_id(f.projects[0])
     company = valid_id(f.company)
     user = valid_id(f.users[0]["user_id"])
@@ -207,6 +220,11 @@ def exercise(f, sdk_module):
         file.write(BINARY)
     os.chmod(binary, 0o600)
     os.chown(binary, 1000, 1000)
+    return source, company, agent, message, expected_history
+
+
+def exercise(f, sdk_module):
+    source, company, agent, message, expected_history = prepare_source(f)
     sdk = sdk_module.AGiXTSDK(base_uri=f.base, api_key=f.users[0]["token"])
     baseline = effects(f)
     assert baseline["transfers"] == baseline["imports"] == 0
@@ -312,6 +330,331 @@ def exercise(f, sdk_module):
     }
 
 
+def repository_inventory(f, conversation, project, generation):
+    uri = f"/v1/conversation/{valid_id(conversation)}/workspace/repositories?"
+    uri += urlencode({"project_id": valid_id(project), "generation": generation})
+    code, value = f.http("GET", uri, user=f.users[0])
+    assert code == 200 and value["metadata_only"] is True
+    assert value["project_id"] == project and value["generation"] == generation
+    assert value["next_cursor"] is None, "Owned inventory must fit one page"
+    return value["checkouts"]
+
+
+def repository_effects(f):
+    return {
+        **effects(f),
+        **f.sql_json(
+            "SELECT json_build_object("
+            "'repositories',(SELECT count(*) FROM user_computer_repositories),"
+            "'checkouts',(SELECT count(*) FROM user_computer_repository_checkouts),"
+            "'associations',(SELECT count(*) FROM user_computer_project_repositories))"
+        ),
+    }
+
+
+def seed_repository(home, directory, files):
+    assert not os.path.lexists(directory), "Exclusive owned checkout required"
+    parent = home
+    for part in directory.relative_to(home).parts:
+        parent = parent / part
+        assert not parent.is_symlink(), "Owned repository path must not follow links"
+        if not parent.exists():
+            parent.mkdir(mode=0o700)
+            # Keep the checkout owned by the seeding process until Git finishes.
+            if parent != directory:
+                os.chown(parent, 1000, 1000)
+        assert parent.is_dir()
+    # Ignore all ambient Git configuration/templates/hooks; no remote is created.
+    env = {
+        "PATH": "/usr/bin:/bin",
+        "HOME": str(directory),
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_SYSTEM": "/dev/null",
+        "GIT_CONFIG_GLOBAL": "/dev/null",
+        "GIT_TERMINAL_PROMPT": "0",
+    }
+    for arguments in (
+        ["init", "-q", "--initial-branch=main", "--template="],
+        ["add", "tracked.txt"],
+        [
+            "-c",
+            "user.name=Owned SDK fixture",
+            "-c",
+            "user.email=fixture@example.invalid",
+            "commit",
+            "-qm",
+            "owned offline seed",
+        ],
+    ):
+        if arguments[0] == "add":
+            (directory / "tracked.txt").write_bytes(b"owned committed seed\n")
+        result = subprocess.run(
+            ["/usr/bin/git", "-C", str(directory), "-c", "core.hooksPath=/dev/null"]
+            + arguments,
+            env=env,
+            capture_output=True,
+            timeout=5,
+            check=False,
+        )
+        assert result.returncode == 0, "Owned offline Git seed failed"
+    for name, data in files.items():
+        with (directory / name).open("xb" if name != "tracked.txt" else "wb") as out:
+            out.write(data)
+    (directory / ".git/sdk-source-only").write_bytes(b"owned Git metadata\n")
+    paths = [directory, *directory.rglob("*")]
+    assert len(paths) <= 128 and not any(path.is_symlink() for path in paths)
+    assert sum(path.stat().st_size for path in paths if path.is_file()) <= 1024 * 1024
+    for path in paths:
+        path.chmod(0o700 if path.is_dir() else 0o600)
+        os.chown(path, 1000, 1000)
+    return (directory / ".git/refs/heads/main").read_bytes()
+
+
+def exercise_selected(f, sdk_module):
+    source, company, agent, message, expected_history = prepare_source(f)
+    code, storage = f.http(
+        "GET", f"/v1/conversation/{source}/workspace/storage", user=f.users[0]
+    )
+    assert code == 200 and storage["mode"] == "computer"
+    assert storage["conversation_id"] == storage["project_id"] == source
+    generation = storage["generation"]
+    assert isinstance(generation, int) and generation > 0
+    home = Path(f.computer["home"]).resolve(strict=True)
+    source_rows, roots, commits = [], [], []
+    # Register exact checkout locations using the ordinary public repository API.
+    # The shared checkout is selected; the embedded sibling must not leak through
+    # the otherwise-included project tree.
+    for selected in (True, False):
+        repository, checkout = str(uuid.uuid4()), str(uuid.uuid4())
+        location = (
+            {"kind": "shared"}
+            if selected
+            else {"kind": "project", "project_id": source, "path": SIBLING_PATH}
+        )
+        root = (
+            home / "repos" / repository / "checkouts" / checkout
+            if selected
+            else home / "projects" / source / SIBLING_PATH
+        )
+        assert root.is_relative_to(home) and home.is_relative_to(f.root)
+        files = REPOSITORY_FILES if selected else {SIBLING_FILE: SIBLING_BYTES}
+        commits.append(seed_repository(home, root, files))
+        roots.append(root)
+        declaration = {
+            "request_id": str(uuid.uuid4()),
+            "project_id": source,
+            "conversation_id": source,
+            "generation": generation,
+            "change": {
+                "action": "register",
+                "repository_id": repository,
+                "checkout_id": checkout,
+                "display_name": "Owned selected" if selected else "Owned omitted",
+                "location": location,
+                "source_checkout_id": None,
+            },
+        }
+        code, registered = f.http(
+            "POST",
+            f"/v1/conversation/{source}/workspace/repositories",
+            declaration,
+            user=f.users[0],
+        )
+        assert code == 200 and registered["recorded"] is True
+        assert registered["metadata_only"] is True
+        assert registered["request"] == declaration
+        source_rows.append(declaration["change"])
+    original_rows = repository_inventory(f, source, source, generation)
+    assert len(original_rows) == 2
+    assert {row["checkout_id"] for row in original_rows} == {
+        row["checkout_id"] for row in source_rows
+    }
+    for expected in source_rows:
+        actual = next(
+            row
+            for row in original_rows
+            if row["checkout_id"] == expected["checkout_id"]
+        )
+        assert all(
+            actual[key] == expected[key] for key in ("repository_id", "location")
+        )
+        assert actual["associated_project_ids"] == [source]
+    sdk = sdk_module.AGiXTSDK(base_uri=f.base, api_key=f.users[0]["token"])
+    baseline = repository_effects(f)
+    assert baseline["transfers"] == baseline["imports"] == 0
+    preview = sdk.preview_conversation_fork(
+        source, agent_id=agent, company_id=company, timeout=5
+    )
+    assert preview["source_conversation_id"] == preview["project_id"] == source
+    assert preview["generation"] == generation
+    choices = {row["checkout_id"]: row for row in preview["repositories"]}
+    assert set(choices) == {row["checkout_id"] for row in source_rows}
+    chosen, omitted = [row["checkout_id"] for row in source_rows]
+    assert choices[chosen]["included_in_project"] is False
+    assert choices[omitted]["included_in_project"] is True
+    assert not any(row["required"] for row in choices.values())
+    assert preview["project_files_included"] is True
+    assert preview["credentials_included"] is False
+    assert preview["repository_metadata_included"] is False
+    assert re.fullmatch(r"[0-9a-f]{64}", preview["preview_digest"])
+    assert repository_effects(f) == baseline, "Preview created effects"
+    request = str(uuid.uuid4())
+    options = {
+        "request_id": request,
+        "agent_id": agent,
+        "company_id": company,
+        "preview_digest": preview["preview_digest"],
+        "repositories": [chosen],
+        "timeout": 90,
+        "poll_interval": 0.25,
+        "request_timeout": 5,
+    }
+    # These POSTs must use the maintained SDK with real requests, never f.http.
+    receipt = sdk.fork_conversation(source, message, **options)
+    target = complete_identity(
+        receipt,
+        request,
+        source,
+        agent,
+        company,
+        repositories=1,
+        files=1 + len(REPOSITORY_FILES),
+        size=len(BINARY) + sum(map(len, REPOSITORY_FILES.values())),
+    )
+    project = verify_copy(f, target, source, message, expected_history)
+    after = repository_effects(f)
+    assert after == {key: value + 1 for key, value in baseline.items()}
+    targets = repository_inventory(f, target, project, generation)
+    assert len(targets) == 1, "Unselected sibling was associated with target"
+    row = targets[0]
+    fresh = [valid_id(row[key]) for key in ("repository_id", "checkout_id")]
+    source_ids = {
+        value[key] for value in source_rows for key in ("repository_id", "checkout_id")
+    }
+    assert len(set(fresh + [project, target])) == 4
+    assert (source_ids | set(f.projects)).isdisjoint(fresh + [project, target])
+    assert row["location"] == {"kind": "shared"}
+    assert row["associated_project_ids"] == [project]
+    repository_root = home / "repos" / fresh[0] / "checkouts" / fresh[1]
+    assert row["guest_path"] == f"/home/agent/repos/{fresh[0]}/checkouts/{fresh[1]}"
+    assert repository_root.is_dir() and (repository_root / ".git").is_dir()
+    assert not (repository_root / ".git/sdk-source-only").exists()
+
+    def verify_repositories():
+        assert repository_inventory(f, target, project, generation) == targets
+        assert repository_inventory(f, source, source, generation) == original_rows
+        for name, data in REPOSITORY_FILES.items():
+            assert (roots[0] / name).read_bytes() == data
+            assert (repository_root / name).read_bytes() == data
+            uri = f"/v1/conversation/{target}/workspace/repositories/{fresh[1]}/file?"
+            uri += urlencode(
+                {"project_id": project, "generation": generation, "path": name}
+            )
+            code, copied = f.http("GET", uri, user=f.users[0], raw_response=True)
+            assert code == 200 and copied == data, "Copied repository download differs"
+            for foreign in (f.users[2], f.users[1]):
+                assert f.http("GET", uri, user=foreign, raw_response=True)[0] in (
+                    403,
+                    404,
+                )
+        assert (roots[1] / SIBLING_FILE).read_bytes() == SIBLING_BYTES
+        for root, commit in zip(roots, commits):
+            assert (root / ".git/refs/heads/main").read_bytes() == commit
+            assert (
+                root / ".git/sdk-source-only"
+            ).read_bytes() == b"owned Git metadata\n"
+        target_project = home / "projects" / project
+        assert not os.path.lexists(target_project / SIBLING_PATH)
+        assert not list(target_project.rglob(SIBLING_FILE))
+        assert not list(repository_root.rglob(SIBLING_FILE))
+        code, _ = f.http(
+            "GET",
+            f"/v1/conversation/{target}/workspace/download?"
+            + urlencode({"path": f"{SIBLING_PATH}/{SIBLING_FILE}"}),
+            user=f.users[0],
+            raw_response=True,
+        )
+        assert code == 404, "Unselected repository leaked via project download"
+
+    verify_repositories()
+    assert sdk.fork_conversation(source, message, **options) == receipt
+    assert repository_effects(f) == after, "Replay duplicated target or repository"
+    assert verify_copy(f, target, source, message, expected_history) == project
+    verify_repositories()
+    private_values = (
+        source,
+        target,
+        project,
+        *source_ids,
+        *fresh,
+        CONTENT,
+        FILENAME,
+        SIBLING_FILE,
+        REPOSITORY_FILES["tracked.txt"].decode().strip(),
+    )
+    for foreign in (f.users[2], f.users[1]):
+        other = sdk_module.AGiXTSDK(base_uri=f.base, api_key=foreign["token"])
+        for denied in (
+            other.preview_conversation_fork(
+                source, agent_id=agent, company_id=company, timeout=5
+            ),
+            other.get_project_transfer(
+                request, agent, company, source_conversation_id=source, timeout=5
+            ),
+            other.fork_conversation(source, message, **options),
+        ):
+            assert isinstance(denied, dict) and set(denied) == {"detail"}
+            encoded = json.dumps(denied)
+            assert len(encoded) <= 4096
+            assert not any(value in encoded for value in private_values)
+    assert repository_effects(f) == after, "Foreign denial created effects"
+    return {
+        "source_conversation_id": source,
+        "agent_id": agent,
+        "company_id": company,
+        "message_id": message,
+        "completed": [{"request_id": request, "id": target, "project_id": project}],
+        "reviewed_repositories": [chosen, omitted],
+        "selected_repositories": [chosen],
+        "target_repository_id": fresh[0],
+        "target_checkout_id": fresh[1],
+        "repository_files_sha256": {
+            name: hashlib.sha256(data).hexdigest()
+            for name, data in REPOSITORY_FILES.items()
+        },
+        "repository_bytes": sum(map(len, REPOSITORY_FILES.values())),
+        "binary_sha256": hashlib.sha256(BINARY).hexdigest(),
+        "binary_bytes": len(BINARY),
+        "effects": {"before": baseline, "final": after},
+        "replay_receipt_exact_no_extra_effects": True,
+        "source_message_and_bytes_intact": True,
+        "unselected_sibling_absent_from_target_registry_and_bytes": True,
+        "foreign_same_company_and_cross_company_preview_post_status_and_files_denied": True,
+    }
+
+
+def diagnostic_counts(row):
+    categories = {"schema_or_seeding": 0, "redis": 0, "unknown": 0}
+    for line in row["warnings"]:
+        if any(
+            marker in line
+            for marker in ("Failed to create", "schema parity", "seeding failed")
+        ):
+            category = "schema_or_seeding"
+        elif "Redis" in line or "redis" in line:
+            category = "redis"
+        else:
+            category = "unknown"
+        categories[category] += 1
+    return {
+        "errors": len(row["errors"]),
+        "warnings": len(row["warnings"]),
+        "warning_categories": categories,
+        "warning_review_required": bool(row["warnings"]),
+        "retryable_responses": row["retryable_responses"],
+    }
+
+
 def owned_containers(f):
     owned = set(getattr(f, "resources", []))
     if getattr(f, "computer", None):
@@ -322,6 +665,16 @@ def owned_containers(f):
 @unittest.skipUnless(os.environ.get(OPT_IN) == "1", "opt-in installed SDK acceptance")
 class InstalledProjectTransferTests(unittest.TestCase):
     def test_maintained_sdk_native_forks(self):
+        self.run_installed_case(
+            exercise, "maintained-sdk-installed-project-transfer-adapter"
+        )
+
+    def test_maintained_sdk_selected_repository_fork(self):
+        self.run_installed_case(
+            exercise_selected, "maintained-sdk-installed-selected-repository-adapter"
+        )
+
+    def run_installed_case(self, exercise_case, kind):
         f = None
         api = None
         step = "preflight"
@@ -357,8 +710,8 @@ class InstalledProjectTransferTests(unittest.TestCase):
                     # Retain the instance even when its constructor fails midway.
                     f = api.InstalledApiFixture.__new__(api.InstalledApiFixture)
                     f.__init__()
-                    step = "SDK fork/restart/replay/isolation checks"
-                    evidence = exercise(f, sdk_module)
+                    step = "SDK fork/replay/isolation checks"
+                    evidence = exercise_case(f, sdk_module)
                     step = "API diagnostics and container preservation"
                     f.capture_api_diagnostics(f.api)
                     preservation.assert_preserved(
@@ -369,7 +722,7 @@ class InstalledProjectTransferTests(unittest.TestCase):
                         == source_hash
                     )
                     proof = {
-                        "kind": "maintained-sdk-installed-project-transfer-adapter",
+                        "kind": kind,
                         "workconductor_checkout": str(checkout),
                         "fixture_source_sha256": hashlib.sha256(
                             Path(api.__file__).read_bytes()
@@ -383,12 +736,7 @@ class InstalledProjectTransferTests(unittest.TestCase):
                         **evidence,
                         # Raw log lines can contain credentials; record counts only.
                         "api_diagnostics": [
-                            {
-                                "errors": len(row["errors"]),
-                                "warnings": len(row["warnings"]),
-                                "retryable_responses": row["retryable_responses"],
-                            }
-                            for row in f.api_diagnostics
+                            diagnostic_counts(row) for row in f.api_diagnostics
                         ],
                         "protected_containers": len(before),
                     }
