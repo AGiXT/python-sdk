@@ -23,6 +23,7 @@ import uuid
 import time
 import json
 import os
+import math
 
 try:
 
@@ -63,6 +64,27 @@ def parse_response(response: requests.Response):
         print(response.text)
         assert False
     print("\n")
+
+
+class ProjectTransferError(RuntimeError):
+    """A fork/observation failed; request_id identifies the original operation."""
+
+    def __init__(
+        self, request_id: Optional[str], message: str, *, timed_out: bool = False
+    ):
+        self.request_id = request_id
+        self.timed_out = timed_out
+        super().__init__(f"{message} (request_id={request_id})")
+
+
+def _transfer_uuid(value, field: str) -> str:
+    try:
+        parsed = uuid.UUID(str(value))
+        if parsed.int == 0:
+            raise ValueError
+        return str(parsed)
+    except (ValueError, TypeError, AttributeError):
+        raise ValueError(f"{field} must be a nonzero UUID") from None
 
 
 class AGiXTSDK:
@@ -678,18 +700,291 @@ class AGiXTSDK:
         self,
         conversation_id: str,
         message_id: str,
+        *,
+        request_id: Optional[str] = None,
+        agent_id: Optional[str] = None,
+        company_id: Optional[str] = None,
+        preview_digest: Optional[str] = None,
+        repositories: Optional[List[str]] = None,
+        wait: bool = True,
+        timeout: float = 60.0,
+        poll_interval: float = 2.0,
+        request_timeout: float = 30.0,
     ):
-        """Fork a conversation from a specific message."""
-        try:
-            response = requests.post(
-                headers=self.headers,
-                url=f"{self.base_uri}/v1/conversation/fork/{conversation_id}/{message_id}",
+        """Fork once, optionally observing a project transfer with GET-only polling.
+
+        Legacy JSON is returned unchanged. Selection requires both preview_digest
+        and repositories (including [] to explicitly omit associated repositories).
+        timeout bounds observation after the POST; request_timeout bounds each
+        HTTP call. On exhausted observation, return the original pending receipt.
+        A ProjectTransferError exposes request_id for read-only recovery; no POST
+        is automatically retried, nor is transfer authority renewed.
+        """
+        request_id = _transfer_uuid(
+            uuid.uuid4() if request_id is None else request_id, "request_id"
+        )
+        for field, value in (
+            ("timeout", timeout),
+            ("poll_interval", poll_interval),
+            ("request_timeout", request_timeout),
+        ):
+            if (
+                not math.isfinite(value)
+                or value < 0
+                or (field != "timeout" and value == 0)
+            ):
+                raise ValueError(f"Invalid {field}")
+        if (preview_digest is None) != (repositories is None):
+            raise ValueError(
+                "preview_digest and repositories must be supplied together"
             )
-            if self.verbose:
-                parse_response(response)
-            return response.json()
-        except Exception as e:
-            return self.handle_error(e)
+        headers = self._project_transfer_headers(request_id, agent_id, company_id)
+        selected = preview_digest is not None
+        path = "computer/project-transfers/fork" if selected else "conversation/fork"
+        arguments = {}
+        if selected:
+            if conversation_id == "-":
+                raise ValueError(
+                    "Explicit repository selection requires a source conversation "
+                    "UUID, not '-'"
+                )
+            conversation_id = _transfer_uuid(conversation_id, "conversation_id")
+            if (
+                not isinstance(preview_digest, str)
+                or len(preview_digest) != 64
+                or any(c not in "0123456789abcdef" for c in preview_digest)
+                or not isinstance(repositories, list)
+                or len(repositories) > 4096
+            ):
+                raise ValueError("Invalid repository selection")
+            chosen = [_transfer_uuid(item, "repository") for item in repositories]
+            if len(set(chosen)) != len(chosen):
+                raise ValueError("Duplicate repository selection")
+            arguments["json"] = {
+                "preview_digest": preview_digest,
+                "repositories": chosen,
+            }
+        receipt = self._project_transfer_json(
+            requests.post,
+            f"{self.base_uri}/v1/{path}/{conversation_id}/{message_id}",
+            headers,
+            request_timeout,
+            require_transfer=selected,
+            **arguments,
+        )
+        if not isinstance(receipt, dict) or "transfer" not in receipt:
+            return receipt
+        transfer = self._validate_project_transfer(
+            receipt,
+            request_id,
+            headers.get("X-Agent-ID"),
+            headers.get("X-Company-ID"),
+            None if conversation_id == "-" else conversation_id,
+        )
+        if not wait or transfer["state"] not in ("queued", "running"):
+            return receipt
+        # Pin the server-resolved scope and the original credential snapshot.
+        agent_id, company_id = transfer["agent_id"], transfer["company_id"]
+        source_conversation_id = transfer["source_conversation_id"]
+        deadline = time.monotonic() + timeout
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return receipt
+            try:
+                result = self._get_project_transfer(
+                    request_id,
+                    agent_id,
+                    company_id,
+                    source_conversation_id,
+                    headers,
+                    min(request_timeout, remaining),
+                )
+            except ProjectTransferError as error:
+                if error.timed_out and time.monotonic() >= deadline:
+                    return receipt
+                raise
+            if not isinstance(result, dict) or "transfer" not in result:
+                return result
+            if result["transfer"]["state"] not in ("queued", "running"):
+                return result
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return receipt
+            time.sleep(min(poll_interval, remaining))
+
+    def preview_conversation_fork(
+        self,
+        conversation_id: str,
+        *,
+        agent_id: Optional[str] = None,
+        company_id: Optional[str] = None,
+        timeout: float = 30.0,
+    ):
+        """Read repository choices/digest without starting or granting a transfer."""
+        headers = self._project_transfer_headers(None, agent_id, company_id)
+        result = self._project_transfer_json(
+            requests.get,
+            f"{self.base_uri}/v1/computer/project-transfers/fork/{conversation_id}",
+            headers,
+            timeout,
+        )
+        if isinstance(result, dict) and "preview_digest" in result:
+            try:
+                matches = _transfer_uuid(
+                    result.get("source_conversation_id"), "source_conversation_id"
+                ) == _transfer_uuid(conversation_id, "conversation_id")
+            except ValueError:
+                matches = False
+            if not matches:
+                raise ProjectTransferError(None, "Fork preview source mismatch")
+        return result
+
+    def get_project_transfer(
+        self,
+        request_id: str,
+        agent_id: str,
+        company_id: Optional[str] = None,
+        *,
+        source_conversation_id: Optional[str] = None,
+        timeout: float = 30.0,
+    ):
+        """Observe the exact original request/agent/company, without resuming it."""
+        request_id = _transfer_uuid(request_id, "request_id")
+        agent_id = _transfer_uuid(agent_id, "agent_id")
+        if company_id is not None:
+            company_id = _transfer_uuid(company_id, "company_id")
+        headers = self._project_transfer_headers(request_id, agent_id, company_id)
+        # None here explicitly denotes personal scope, not an inherited company.
+        headers.pop("X-Company-ID", None)
+        if company_id is not None:
+            headers["X-Company-ID"] = company_id
+        return self._get_project_transfer(
+            request_id,
+            agent_id,
+            company_id,
+            source_conversation_id,
+            headers,
+            timeout,
+        )
+
+    def _project_transfer_headers(self, request_id, agent_id, company_id):
+        headers = requests.structures.CaseInsensitiveDict(self.headers)
+        for name, value in (
+            ("X-Request-ID", request_id),
+            ("X-Agent-ID", agent_id),
+            ("X-Company-ID", company_id),
+        ):
+            if value is not None:
+                headers[name] = _transfer_uuid(value, name)
+            elif name in headers:
+                headers[name] = _transfer_uuid(headers[name], name)
+        return headers
+
+    @staticmethod
+    def _project_transfer_json(
+        method, url, headers, timeout, require_transfer=False, **kwargs
+    ):
+        if not math.isfinite(timeout) or timeout <= 0:
+            raise ValueError("HTTP timeout must be finite and positive")
+        try:
+            response = method(
+                url=url,
+                headers=headers,
+                timeout=timeout,
+                allow_redirects=False,
+                **kwargs,
+            )
+            if 300 <= response.status_code < 400:
+                raise ProjectTransferError(
+                    headers.get("X-Request-ID"),
+                    "Fork/transfer redirect refused; no redirect was followed",
+                )
+            result = response.json()
+        except (requests.RequestException, ValueError) as error:
+            # Exception text/requests may contain credentials. Expose only the ID.
+            raise ProjectTransferError(
+                headers.get("X-Request-ID"),
+                "Fork/transfer observation failed; inspect the original request "
+                "with get_project_transfer; no POST was retried",
+                timed_out=isinstance(error, requests.Timeout),
+            ) from None
+        if (
+            require_transfer
+            and 200 <= response.status_code < 300
+            and (not isinstance(result, dict) or "transfer" not in result)
+        ):
+            raise ProjectTransferError(
+                headers.get("X-Request-ID"), "Missing transfer response identity"
+            )
+        return result
+
+    def _get_project_transfer(
+        self, request_id, agent_id, company_id, source, headers, timeout
+    ):
+        params = {"agent_id": agent_id}
+        if company_id is not None:
+            params["company_id"] = company_id
+        result = self._project_transfer_json(
+            requests.get,
+            f"{self.base_uri}/v1/computer/project-transfers/{request_id}",
+            headers,
+            timeout,
+            require_transfer=True,
+            params=params,
+        )
+        if isinstance(result, dict) and "transfer" in result:
+            self._validate_project_transfer(
+                result, request_id, agent_id, company_id, source, exact_company=True
+            )
+        return result
+
+    @staticmethod
+    def _validate_project_transfer(
+        result, request_id, agent_id, company_id, source, exact_company=False
+    ):
+        try:
+            transfer = result["transfer"]
+            if not isinstance(transfer, dict):
+                raise ValueError
+            for field in ("request_id", "agent_id", "source_conversation_id"):
+                _transfer_uuid(transfer[field], field)
+            if transfer["source_conversation_id"] != _transfer_uuid(
+                transfer["source_conversation_id"], "source_conversation_id"
+            ):
+                raise ValueError
+            if transfer["company_id"] is not None:
+                _transfer_uuid(transfer["company_id"], "company_id")
+            expected = {"request_id": request_id}
+            if agent_id is not None:
+                expected["agent_id"] = agent_id
+            if exact_company or company_id is not None:
+                expected["company_id"] = company_id
+            if source is not None:
+                expected["source_conversation_id"] = _transfer_uuid(
+                    source, "source_conversation_id"
+                )
+            if any(transfer[key] != value for key, value in expected.items()):
+                raise ValueError
+            if transfer["state"] not in (
+                "queued",
+                "running",
+                "completed",
+                "attention",
+                "failed",
+            ):
+                raise ValueError
+            if transfer["state"] == "completed":
+                _transfer_uuid(result["id"], "id")
+                if result["id"] != transfer["conversation_id"] or not isinstance(
+                    result["name"], str
+                ):
+                    raise ValueError
+            return transfer
+        except (KeyError, TypeError, ValueError):
+            raise ProjectTransferError(
+                request_id, "Fork transfer response identity/state mismatch"
+            ) from None
 
     def new_conversation(
         self,
