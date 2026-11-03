@@ -37,6 +37,63 @@ ApiClient = AGiXTSDK(base_uri=base_uri, api_key=api_key)
 
 Check out the AGiXT [Examples and Tests Notebook](https://github.com/Josh-XT/AGiXT/blob/main/tests/endpoint-tests.ipynb) for examples of how to use the AGiXT SDK for Python.
 
+### Conversation Forks
+
+`fork_conversation(conversation_id, message_id)` keeps its positional arguments
+and legacy JSON return. Each call sends a fresh `X-Request-ID` UUID unless a
+keyword `request_id` is supplied; headers are copied, never changed on the client.
+No selection uses the legacy fork URL, including native project forks with no
+associated repositories. Optional `agent_id` and `company_id` set per-call scope.
+The legacy `"-"` source alias is sent unchanged in that single POST, without a
+lookup. A native receipt resolves it to a canonical source UUID, which is pinned
+for all status polling. Explicit repository selection requires a source UUID,
+not `"-"`.
+
+For associated repositories, explicitly review and select checkout IDs:
+
+```python
+import uuid
+
+preview = ApiClient.preview_conversation_fork(conversation_id, company_id=company_id)
+request_id = str(uuid.uuid4())  # Retain for read-only recovery after connection loss.
+result = ApiClient.fork_conversation(
+    conversation_id,
+    message_id,
+    request_id=request_id,
+    agent_id=agent_id,
+    company_id=company_id,
+    preview_digest=preview["preview_digest"],
+    repositories=selected_checkout_ids,
+)
+```
+
+Both selection keywords are required together and use the project-transfer URL.
+`repositories=[]` explicitly omits associated repositories; the server can refuse
+omitting a required project-root repository. The SDK never selects all, refreshes
+a digest, or falls back to an unselected POST.
+
+Queued/running transfers are polled with GET only, using the original credentials
+and exact request/agent/company. Completed responses include legacy `id`/`name`
+and the transfer receipt. `attention`/`failed` outcomes are returned unchanged,
+without resume or regrant. Set `wait=False` for the immediate receipt; `timeout=60`
+seconds bounds the default observation window, `poll_interval=2` controls polling,
+and `request_timeout=30` bounds each HTTP call. Exhausting the observation window
+returns the original pending receipt, not a fabricated completion.
+
+Network/JSON failures raise `agixtsdk.ProjectTransferError` with a safe
+`request_id` attribute, without including credential-bearing exception details.
+Redirects are disabled for every fork/transfer HTTP call; any 3xx raises a safe
+`ProjectTransferError` without exposing the redirect target or response body.
+No POST is retried automatically. Recover by calling
+`ApiClient.get_project_transfer(request_id, agent_id, company_id,
+source_conversation_id=conversation_id)` with the original scope. This read-only
+helper validates returned request/agent/company and, when supplied, source identity;
+fork polling always validates the source. `company_id=None` on this helper means
+personal scope, not an inherited company header. Preview/status helpers accept
+an HTTP `timeout=30`. Server error JSON is returned unchanged.
+When recovering an alias fork, use the receipt's resolved source UUID if known,
+not `"-"`, for `source_conversation_id`; omit it if no receipt was received.
+
 ## More Documentation
 
 Want to know more about AGiXT?  Check out our [documentation](https://josh-xt.github.io/AGiXT/) or [GitHub](https://github.com/Josh-XT/AGiXT) page.
